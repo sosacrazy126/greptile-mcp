@@ -175,13 +175,13 @@ For detailed usage instructions for AI agents, see the [Agent Usage Guide](./AGE
 
 #### SSE Transport (Default)
 
-Ensure `TRANSPORT=sse` and `PORT=8050` (or your chosen port) are set in your `.env` file.
+  Ensure `TRANSPORT=sse` and `PORT=8050` (or your chosen port) are set in your `.env` file.
 
-```bash
-python -m src.main
-```
+  ```bash
+  python -m src.main
+  ```
 
-The server will listen on `http://<HOST>:<PORT>/sse`.
+  The server will listen on `http://<HOST>:<PORT>/sse`.
 
 #### Stdio Transport
 
@@ -197,16 +197,16 @@ TRANSPORT=stdio python -m src.main
 
 #### SSE Transport (Default)
 
-```bash
-# Mounts the .env file for configuration and maps the port
-docker run --rm --env-file .env -p 8050:8050 greptile-mcp
-```
+  ```bash
+  # Mounts the .env file for configuration and maps the port
+  docker run --rm --env-file .env -p 8050:8050 greptile-mcp
+  ```
 
-The server will listen on `http://localhost:8050/sse` (or the host IP if not localhost).
+  The server will listen on `http://localhost:8050/sse` (or the host IP if not localhost).
 
 #### Stdio Transport
 
-Configure your MCP client to run the Docker container with `TRANSPORT=stdio`.
+  Configure your MCP client to run the Docker container with `TRANSPORT=stdio`.
 
 ```bash
 # Example of running with stdio transport

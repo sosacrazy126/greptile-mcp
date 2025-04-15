@@ -4,6 +4,7 @@ from httpx import Response
 from unittest.mock import patch, MagicMock, AsyncMock
 import os
 from dotenv import load_dotenv
+import urllib.parse
 
 from src.utils import GreptileClient, get_greptile_client
 
@@ -195,6 +196,8 @@ class TestGreptileClient:
             
             # Check URL is constructed correctly using the real base URL
             expected_base_url = os.getenv("GREPTILE_BASE_URL", "https://api.greptile.com/v2")
-            assert args[0] == f"{expected_base_url}/repositories/github%3Amain%3Atest/repo"
+            # Use quote_plus with safe='' to ensure complete encoding, including slashes
+            encoded_repo = urllib.parse.quote_plus("github:main:test/repo", safe='')
+            assert args[0] == f"{expected_base_url}/repositories/{encoded_repo}"
         finally:
             await client.aclose()
