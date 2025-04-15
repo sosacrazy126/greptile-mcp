@@ -1,0 +1,42 @@
+build:
+  dockerfile: Dockerfile
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - greptileApiKey
+      - githubToken
+    properties:
+      greptileApiKey:
+        type: string
+        description: "API key for accessing the Greptile API"
+      githubToken:
+        type: string
+        description: "GitHub Personal Access Token for repository access"
+      baseUrl:
+        type: string
+        description: "Base URL for Greptile API"
+        default: "https://api.greptile.com/v2"
+      host:
+        type: string
+        description: "Host to bind to when using SSE transport"
+        default: "0.0.0.0"
+      port:
+        type: string
+        description: "Port to listen on when using SSE transport"
+        default: "8050"
+  commandFunction: |
+    (config) => ({
+      command: 'python',
+      args: ['-m', 'src.main'],
+      env: {
+        GREPTILE_API_KEY: config.greptileApiKey,
+        GITHUB_TOKEN: config.githubToken,
+        GREPTILE_BASE_URL: config.baseUrl || "https://api.greptile.com/v2",
+        TRANSPORT: 'stdio',
+        HOST: config.host || "0.0.0.0",
+        PORT: config.port || "8050"
+      }
+    }) 
