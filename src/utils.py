@@ -119,7 +119,8 @@ class GreptileClient:
         Returns:
             The API response as a dictionary
         """
-        encoded_id = urllib.parse.quote(repository_id)
+        # Fully encode the repository_id, this ensures the slashes are properly encoded
+        encoded_id = urllib.parse.quote_plus(repository_id, safe='')
         url = f"{self.base_url}/repositories/{encoded_id}"
         
         response = await self.client.get(url, headers=self.headers)
