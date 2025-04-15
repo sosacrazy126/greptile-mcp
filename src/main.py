@@ -34,8 +34,9 @@ async def greptile_lifespan(server: FastMCP) -> AsyncIterator[GreptileContext]:
     try:
         yield GreptileContext(greptile_client=greptile_client)
     finally:
-        # No explicit cleanup needed for the Greptile client
-        pass
+        # Close the async client when the lifespan ends
+        await greptile_client.aclose()
+        print("Greptile client closed.")
 
 # Initialize FastMCP server with the Greptile client as context
 mcp = FastMCP(
@@ -63,7 +64,7 @@ async def index_repository(ctx: Context, remote: str, repository: str, branch: s
     """
     try:
         greptile_client = ctx.request_context.lifespan_context.greptile_client
-        result = greptile_client.index_repository(remote, repository, branch, reload, notify)
+        result = await greptile_client.index_repository(remote, repository, branch, reload, notify)
         return json.dumps(result, indent=2)
     except Exception as e:
         return f"Error indexing repository: {str(e)}"
@@ -86,7 +87,7 @@ async def query_repository(ctx: Context, query: str, repositories: list, session
     try:
         greptile_client = ctx.request_context.lifespan_context.greptile_client
         messages = [{"role": "user", "content": query}]
-        result = greptile_client.query_repositories(messages, repositories, session_id, stream, genius)
+        result = await greptile_client.query_repositories(messages, repositories, session_id, stream, genius)
         return json.dumps(result, indent=2)
     except Exception as e:
         return f"Error querying repositories: {str(e)}"
@@ -108,7 +109,7 @@ async def search_repository(ctx: Context, query: str, repositories: list, sessio
     try:
         greptile_client = ctx.request_context.lifespan_context.greptile_client
         messages = [{"role": "user", "content": query}]
-        result = greptile_client.search_repositories(messages, repositories, session_id, genius)
+        result = await greptile_client.search_repositories(messages, repositories, session_id, genius)
         return json.dumps(result, indent=2)
     except Exception as e:
         return f"Error searching repositories: {str(e)}"
@@ -129,7 +130,7 @@ async def get_repository_info(ctx: Context, remote: str, repository: str, branch
     try:
         greptile_client = ctx.request_context.lifespan_context.greptile_client
         repository_id = f"{remote}:{branch}:{repository}"
-        result = greptile_client.get_repository_info(repository_id)
+        result = await greptile_client.get_repository_info(repository_id)
         return json.dumps(result, indent=2)
     except Exception as e:
         return f"Error getting repository info: {str(e)}"

@@ -1,6 +1,6 @@
 import pytest
 import pytest_asyncio
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 import json
 import os
 
@@ -23,17 +23,17 @@ def mock_greptile_client():
     client = MagicMock(spec=GreptileClient)
     
     # Updated mock responses to match actual API responses
-    client.index_repository.return_value = {
+    client.index_repository = AsyncMock(return_value={
         "status": "queued",
         "id": "test-id",
         "message": "Repository indexing queued"
-    }
-    client.query_repositories.return_value = {
+    })
+    client.query_repositories = AsyncMock(return_value={
         "answer": "Test answer",
         "references": [],
         "confidence": 0.95
-    }
-    client.search_repositories.return_value = {
+    })
+    client.search_repositories = AsyncMock(return_value={
         "files": [
             {
                 "path": "test/file.py",
@@ -41,13 +41,14 @@ def mock_greptile_client():
                 "matches": []
             }
         ]
-    }
-    client.get_repository_info.return_value = {
+    })
+    client.get_repository_info = AsyncMock(return_value={
         "id": "test-id",
         "status": "completed",
         "last_indexed": "2024-03-20T12:00:00Z",
         "branch": "main"
-    }
+    })
+    client.aclose = AsyncMock()
     return client
 
 @pytest.fixture
@@ -95,13 +96,11 @@ class TestMCPTools:
         mock_greptile_client.query_repositories.assert_called_once()
         args, kwargs = mock_greptile_client.query_repositories.call_args
         
-        # Check that the messages list contains the query
-        assert len(kwargs["messages"]) == 1
-        assert kwargs["messages"][0]["role"] == "user"
-        assert kwargs["messages"][0]["content"] == "test query"
-        
-        # Check repositories parameter
-        assert kwargs["repositories"] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
+        # Verify the arguments match what we expect
+        # The first arg should be messages
+        assert args[0] == [{"role": "user", "content": "test query"}]
+        # The second arg should be repositories
+        assert args[1] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
         
         # Parse and verify the result
         parsed_result = json.loads(result)
@@ -121,13 +120,11 @@ class TestMCPTools:
         mock_greptile_client.search_repositories.assert_called_once()
         args, kwargs = mock_greptile_client.search_repositories.call_args
         
-        # Check that the messages list contains the query
-        assert len(kwargs["messages"]) == 1
-        assert kwargs["messages"][0]["role"] == "user"
-        assert kwargs["messages"][0]["content"] == "test query"
-        
-        # Check repositories parameter
-        assert kwargs["repositories"] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
+        # Verify the arguments match what we expect
+        # The first arg should be messages
+        assert args[0] == [{"role": "user", "content": "test query"}]
+        # The second arg should be repositories
+        assert args[1] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
         
         # Parse and verify the result
         parsed_result = json.loads(result)
@@ -159,7 +156,7 @@ class TestMCPTools:
     async def test_error_handling(self, mock_context, mock_greptile_client):
         """Test that errors are properly handled and returned as error strings."""
         # Set up the mock to raise an exception
-        mock_greptile_client.index_repository.side_effect = Exception("Test error")
+        mock_greptile_client.index_repository = AsyncMock(side_effect=Exception("Test error"))
         
         result = await index_repository(
             ctx=mock_context,
@@ -169,4 +166,4 @@ class TestMCPTools:
         )
         
         # Verify the error message is returned
-        assert "Error indexing repository: Test error" in result
+        assert result.startswith("Error indexing repository: Test error")

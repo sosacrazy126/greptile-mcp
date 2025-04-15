@@ -20,9 +20,13 @@ class GreptileClient:
             "X-GitHub-Token": github_token,
             "Content-Type": "application/json"
         }
-        self.client = httpx.Client(timeout=60.0)  # Longer timeout for indexing operations
+        self.client = httpx.AsyncClient(timeout=60.0)  # Longer timeout for indexing operations
     
-    def index_repository(self, remote, repository, branch, reload=False, notify=False):
+    async def aclose(self):
+        """Close the underlying HTTPX client."""
+        await self.client.aclose()
+    
+    async def index_repository(self, remote, repository, branch, reload=False, notify=False):
         """
         Index a repository for code search and querying.
         
@@ -45,11 +49,11 @@ class GreptileClient:
             "notify": notify
         }
         
-        response = self.client.post(url, json=payload, headers=self.headers)
+        response = await self.client.post(url, json=payload, headers=self.headers)
         response.raise_for_status()
         return response.json()
     
-    def query_repositories(self, messages, repositories, session_id=None, stream=False, genius=True):
+    async def query_repositories(self, messages, repositories, session_id=None, stream=False, genius=True):
         """
         Query repositories to get an answer with code references.
         
@@ -74,11 +78,11 @@ class GreptileClient:
         if session_id:
             payload["sessionId"] = session_id
         
-        response = self.client.post(url, json=payload, headers=self.headers)
+        response = await self.client.post(url, json=payload, headers=self.headers)
         response.raise_for_status()
         return response.json()
     
-    def search_repositories(self, messages, repositories, session_id=None, genius=True):
+    async def search_repositories(self, messages, repositories, session_id=None, genius=True):
         """
         Search repositories for relevant files without generating a full answer.
         
@@ -101,11 +105,11 @@ class GreptileClient:
         if session_id:
             payload["sessionId"] = session_id
         
-        response = self.client.post(url, json=payload, headers=self.headers)
+        response = await self.client.post(url, json=payload, headers=self.headers)
         response.raise_for_status()
         return response.json()
     
-    def get_repository_info(self, repository_id):
+    async def get_repository_info(self, repository_id):
         """
         Get information about an indexed repository.
         
@@ -118,7 +122,7 @@ class GreptileClient:
         encoded_id = urllib.parse.quote(repository_id)
         url = f"{self.base_url}/repositories/{encoded_id}"
         
-        response = self.client.get(url, headers=self.headers)
+        response = await self.client.get(url, headers=self.headers)
         response.raise_for_status()
         return response.json()
 
