@@ -500,7 +500,7 @@ async def chat_endpoint(request: Request):
                 json={
                     "query": user_message,
                     "repositories": [
-                        {"remote": "github", "repository": "your-org/your-repo", "branch": "main"}
+                        {"remote": "github", "repository": "greptileai/greptile", "branch": "main"}
                     ],
                     "genius": True
                 }
