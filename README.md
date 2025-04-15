@@ -2,9 +2,6 @@
 
 An MCP (Model Context Protocol) server implementation that integrates with the Greptile API to provide code search and querying capabilities to AI agents. This connector allows AI assistants to understand, analyze, and query codebases with natural language.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/sosacrazy126/greptile-mcp/main/docs/greptile-mcp-logo.png" alt="Greptile MCP Logo" width="300" />
-</p>
 
 **Project Structure:**
 ```
@@ -33,6 +30,7 @@ greptile-mcp/
 - [Advanced Configuration](#advanced-configuration)
 - [Contributing](#contributing)
 - [License](#license)
+- [Smithery Deployment](#smithery-deployment)
 
 ## Features
 
@@ -57,6 +55,58 @@ The server provides four essential Greptile tools that enable AI agents to inter
    - Check indexing status and progress
    - Verify which repositories are available for querying
    - Get metadata about indexed repositories
+
+## Smithery Deployment
+
+The Greptile MCP server supports deployment via Smithery. A `smithery.yaml` configuration file is included in the project root.
+
+### Smithery Configuration
+
+The Smithery configuration is defined in `smithery.yaml` and supports the following options:
+
+```yaml
+build:
+  dockerfile: Dockerfile
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - greptileApiKey
+      - githubToken
+    properties:
+      greptileApiKey:
+        type: string
+        description: "API key for accessing the Greptile API"
+      githubToken:
+        type: string
+        description: "GitHub Personal Access Token for repository access"
+      baseUrl:
+        type: string
+        description: "Base URL for Greptile API"
+        default: "https://api.greptile.com/v2"
+      host:
+        type: string
+        description: "Host to bind to when using SSE transport"
+        default: "0.0.0.0"
+      port:
+        type: string
+        description: "Port to listen on when using SSE transport"
+        default: "8050"
+```
+
+### Using with Smithery
+
+To deploy using Smithery:
+
+1. Install Smithery: `npm install -g smithery`
+2. Deploy the server: `smithery deploy`
+3. Configure your Smithery client with the required API keys
+
+### Additional Documentation
+
+For detailed usage instructions for AI agents, see the [Agent Usage Guide](./AGENT_USAGE.md).
 
 ## Prerequisites
 
@@ -135,7 +185,8 @@ The server will listen on `http://<HOST>:<PORT>/sse`.
 
 #### Stdio Transport
 
-Set `TRANSPORT=stdio` in your `.env` file. With stdio, the MCP client typically spins up the MCP server process.
+Set `TRANSPORT=stdio` in your `.env` file. With stdio, the MCP client typically spins up
+ the MCP server process.
 
 ```bash
 # Usually invoked by an MCP client, not directly
@@ -235,6 +286,38 @@ Ensure `TRANSPORT=stdio` is set in the environment where the command runs:
 2. **Verify indexing status** with `get_repository_info` to ensure processing is complete
 3. **Query the repositories** using natural language with `query_repository`
 4. **Find specific files** related to features or concepts using `search_repository`
+
+### Session Management for Conversation Context
+
+When interacting with the Greptile MCP server through any client (including Smithery), proper session management is crucial for maintaining conversation context:
+
+1. **Generate a unique session ID** at the beginning of a conversation
+2. **Reuse the same session ID** for all related follow-up queries
+3. **Create a new session ID** when starting a new conversation
+
+Example session ID management:
+
+```python
+# Generate a unique session ID
+import uuid
+session_id = str(uuid.uuid4())
+
+# Initial query
+initial_response = query_repository(
+    query="How is authentication implemented?",
+    repositories=[{"remote": "github", "repository": "owner/repo", "branch": "main"}],
+    session_id=session_id  # Include the session ID
+)
+
+# Follow-up query using the SAME session ID
+followup_response = query_repository(
+    query="Can you provide more details about the JWT verification?",
+    repositories=[{"remote": "github", "repository": "owner/repo", "branch": "main"}],
+    session_id=session_id  # Reuse the same session ID
+)
+```
+
+> **Important for Smithery Integration**: Agents connecting via Smithery must generate and maintain their own session IDs. The Greptile MCP server does NOT automatically generate session IDs. The session ID should be part of the agent's conversation state.
 
 ### Best Practices
 
@@ -500,7 +583,7 @@ async def chat_endpoint(request: Request):
                 json={
                     "query": user_message,
                     "repositories": [
-                        {"remote": "github", "repository": "greptileai/greptile", "branch": "main"}
+                        {"remote": "github", "repository": "your-org/your-repo", "branch": "main"}
                     ],
                     "genius": True
                 }
