@@ -1,7 +1,7 @@
 # Greptile MCP Server
 
 An MCP (Model Context Protocol) server implementation that integrates with the Greptile API to provide code search and querying capabilities to AI agents. This connector allows AI assistants to understand, analyze, and query codebases with natural language.
-
+[![smithery badge](https://smithery.ai/badge/@sosacrazy126/greptile-mcp)](https://smithery.ai/server/@sosacrazy126/greptile-mcp)
 
 **Project Structure:**
 ```
