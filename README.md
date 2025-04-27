@@ -822,4 +822,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-Built with ❤️ by the [Greptile Team](https://github.com/greptileai) 
+Built by (https://github.com/sosacrazy126) 
