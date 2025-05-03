@@ -1,5 +1,41 @@
 # Greptile MCP Server
 
+> **Quick Start for Cline/Agents**
+
+> - **Requirement Summary**: Python 3.12+, Docker (optional), valid Greptile API Key, and GitHub or GitLab Access Token (required).
+>
+> ---
+>
+> ## 🏁 Quick Install & Run (Choose One)
+>
+> **1. Local Python (Recommended for agents with Python access)**
+> 1. `git clone https://github.com/sosacrazy126/greptile-mcp.git`
+> 2. `cd greptile-mcp`
+> 3. `python -m venv .venv && source .venv/bin/activate`
+> 4. `pip install -e .`
+> 5. `cp .env.example .env`
+> 6. Edit `.env` to fill in `GREPTILE_API_KEY` and `GITHUB_TOKEN`.
+> 7. Run: `python -m src.main`
+>
+> **2. Docker (Recommended for deployments/containers)**
+> 1. `git clone https://github.com/sosacrazy126/greptile-mcp.git && cd greptile-mcp`
+> 2. `cp .env.example .env` and add your credentials.
+> 3. `docker build -t greptile-mcp .`
+> 4. `docker run --rm --env-file .env -p 8050:8050 greptile-mcp`
+>
+> **3. Smithery Cloud**
+> 1. Install Smithery: `npm install -g smithery`
+> 2. From this folder, run: `smithery deploy`
+> 3. Provide the required `greptileApiKey` and `githubToken` per `smithery.yaml`.
+>
+> ---
+>
+> For automation or agent integrations, see also: [AGENT_USAGE.md](./AGENT_USAGE.md)
+>
+> All detailed steps, troubleshooting, and advanced configuration are described further below.
+>
+> ---
+
 An MCP (Model Context Protocol) server implementation that integrates with the Greptile API to provide code search and querying capabilities to AI agents. This connector allows AI assistants to understand, analyze, and query codebases with natural language.
 [![smithery badge](https://smithery.ai/badge/@sosacrazy126/greptile-mcp)](https://smithery.ai/server/@sosacrazy126/greptile-mcp)
 
