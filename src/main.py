@@ -6,8 +6,13 @@ from dotenv import load_dotenv
 import asyncio
 import json
 import os
+from typing import List, Dict, Any, Optional, AsyncGenerator, Union
 
-from src.utils import get_greptile_client
+from src.utils import (
+    get_greptile_client,
+    SessionManager,
+    generate_session_id
+)
 
 load_dotenv()
 
@@ -17,44 +22,39 @@ class GreptileContext:
     """Context for the Greptile MCP server."""
     greptile_client: object  # The Greptile API client
     initialized: bool = False  # Track if initialization is complete
+    session_manager: Optional[SessionManager] = None  # Add session manager for conversation context
 
 @asynccontextmanager
 async def greptile_lifespan(server: FastMCP) -> AsyncIterator[GreptileContext]:
     """
-    Manages the Greptile client lifecycle.
-    
+    Manages the Greptile client lifecycle and session/conv context.
+
     Args:
         server: The FastMCP server instance
-        
+
     Yields:
-        GreptileContext: The context containing the Greptile client
+        GreptileContext: The context containing the Greptile client and session manager
     """
-    # Create the Greptile client with the helper function in utils.py
     greptile_client = get_greptile_client()
-    context = GreptileContext(greptile_client=greptile_client, initialized=False)
-    
+    session_manager = SessionManager()
+    context = GreptileContext(greptile_client=greptile_client, initialized=False, session_manager=session_manager)
+
     try:
-        # Signal that initialization is starting
         print("Initializing Greptile client...")
-        
-        # Perform any necessary setup here
-        # For example, check API connection:
         try:
-            # Add any initialization checks here if needed
-            await asyncio.sleep(0.5)  # Brief pause to ensure all setup is complete
+            await asyncio.sleep(0.5)
             context.initialized = True
             print("Greptile client successfully initialized")
         except Exception as e:
             print(f"Error during Greptile client initialization: {e}")
             raise
-            
+
         yield context
     finally:
-        # Close the async client when the lifespan ends
         await greptile_client.aclose()
         print("Greptile client closed.")
 
-# Initialize FastMCP server with the Greptile client as context
+# Initialize FastMCP server with the Greptile client and session manager as context
 mcp = FastMCP(
     "mcp-greptile",
     description="MCP server for code search and querying with Greptile API",
@@ -95,33 +95,84 @@ async def index_repository(ctx: Context, remote: str, repository: str, branch: s
         return f"Error indexing repository: {str(e)}"
 
 @mcp.tool()
-async def query_repository(ctx: Context, query: str, repositories: list, session_id: str = None, stream: bool = False, genius: bool = True) -> str:
-    """Query repositories to get an answer with code references.
-    
-    This tool submits a natural language query to get an answer with relevant code references
-    from the specified repositories. The repositories must have been indexed first.
-    
+async def query_repository(
+    ctx: Context,
+    query: str,
+    repositories: list,
+    session_id: Optional[str] = None,
+    stream: bool = False,
+    genius: bool = True,
+    timeout: Optional[float] = None,
+    previous_messages: Optional[List[Dict[str, Any]]] = None
+) -> Union[str, AsyncGenerator[str, None]]:
+    """
+    Query repositories to get an answer with code references.
+
+    Supports both single-turn and multi-turn (conversational) context.
+
     Args:
-        ctx: The MCP server provided context which includes the Greptile client
+        ctx: MCP server provided context
         query: The natural language query about the codebase
-        repositories: List of repositories to query, each with format {"remote": "github", "repository": "owner/repo", "branch": "main"}
-        session_id: Optional session ID for continuing a conversation
-        stream: Whether to stream the response (default: False)
-        genius: Whether to use the enhanced query capabilities (default: True)
+        repositories: List of repositories to query
+        session_id: Used for multi-turn conversations; generates new if not provided
+        stream: Enable streaming for long queries (returns async generator)
+        genius: Use enhanced answer quality (may take longer)
+        timeout: Optional per-query timeout (seconds)
+        previous_messages: Optional prior conversation messages for this session
+
+    Returns:
+        - For streaming: async generator yielding JSON strings.
+        - For non-streaming: formatted JSON string (single result).
     """
     try:
         greptile_context = ctx.request_context.lifespan_context
-        
-        # Check if initialization is complete
         if not getattr(greptile_context, 'initialized', False):
             return json.dumps({
                 "error": "Server initialization is not complete. Please try again in a moment.",
                 "status": "initializing"
             }, indent=2)
-            
+
         greptile_client = greptile_context.greptile_client
-        messages = [{"role": "user", "content": query}]
-        result = await greptile_client.query_repositories(messages, repositories, session_id, stream, genius)
+        session_manager: SessionManager = greptile_context.session_manager
+
+        # Session logic
+        sid = session_id or generate_session_id()
+        # Build message history, defaulting to previous_messages if provided
+        if previous_messages is not None:
+            messages = previous_messages + [{"role": "user", "content": query}]
+            await session_manager.set_history(sid, messages)
+        else:
+            # Retrieve stored history or start new conversation
+            history = await session_manager.get_history(sid)
+            messages = history + [{"role": "user", "content": query}]
+            await session_manager.set_history(sid, messages)
+
+        # Handle streaming response
+        if stream:
+            async def streaming_gen() -> AsyncGenerator[str, None]:
+                async for chunk in greptile_client.stream_query_repositories(
+                    messages, repositories, session_id=sid, genius=genius, timeout=timeout
+                ):
+                    # Optionally, add chunk/response to session history (system/assistant)
+                    # If Greptile API returns role/content, could append to session
+                    yield json.dumps(chunk)
+            return streaming_gen()
+
+        # Non-streaming query; get response fully then append to session history
+        result = await greptile_client.query_repositories(
+            messages, repositories, session_id=sid, stream=False, genius=genius, timeout=timeout
+        )
+
+        # Persist new assistant/content response in session history if return has role/content fields
+        if "messages" in result:
+            # If API returns messages array, update session
+            await session_manager.set_history(sid, result["messages"])
+        elif "output" in result:
+            # If API returns one assistant message, append it
+            await session_manager.append_message(sid, {"role": "assistant", "content": result["output"]})
+
+        # Attach the session_id for client reference
+        result["_session_id"] = sid
         return json.dumps(result, indent=2)
     except Exception as e:
         return f"Error querying repositories: {str(e)}"
