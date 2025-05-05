@@ -127,3 +127,14 @@ coverage.xml
 .ipynb_checkpoints
 profile_default/
 ipython_config.py
+
+# Additional development files not needed in codebase
+.cursor/
+.roo/
+memory-bank/
+tasks/
+.cursorignore
+.cursorrules
+.roomodes
+.taskmasterconfig
+.windsurfrules
