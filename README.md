@@ -1,6 +1,10 @@
-# Greptile MCP Server
+# Greptile MCP Server [COMPLETED]
 
 An MCP (Model Context Protocol) server implementation that integrates with the Greptile API to provide code search and querying capabilities to AI agents. This connector allows AI assistants to understand, analyze, and query codebases with natural language.
+
+**✅ PROJECT STATUS: ALL TASKS COMPLETED (11/11)**
+
+Please see [PROJECT_COMPLETION.md](./PROJECT_COMPLETION.md) for a summary of completed work and [USER_GUIDE.md](./USER_GUIDE.md) for usage instructions.
 
 
 **Project Structure:**
