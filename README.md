@@ -1,40 +1,27 @@
 # Greptile MCP Server [COMPLETED]
 
-An MCP (Model Context Protocol) server implementation that integrates with the Greptile API to provide code search and querying capabilities to AI agents. This connector allows AI assistants to understand, analyze, and query codebases with natural language.
+**Quick Run Command Cheatsheet**
 
 **✅ PROJECT STATUS: ALL TASKS COMPLETED (11/11)**
 
 Please see [PROJECT_COMPLETION.md](./PROJECT_COMPLETION.md) for a summary of completed work and [USER_GUIDE.md](./USER_GUIDE.md) for usage instructions.
 
+| Environment   | Setup & Install                                                       | Run Command                                   |
+| ------------- | --------------------------------------------------------------------- | --------------------------------------------- |
+| **Local (Python)** | `python -m venv .venv && source .venv/bin/activate && pip install -e .` | `python -m src.main`                          |
+| **Docker**        | `docker build -t greptile-mcp .`                                      | `docker run --rm --env-file .env -p 8050:8050 greptile-mcp` |
+| **Smithery**      | `npm install -g smithery`                                             | `smithery deploy` (see smithery.yaml)         |
 
-**Project Structure:**
-```
-greptile-mcp/
-├── src/
-│   ├── main.py             # Core MCP server with Greptile tool definitions
-│   ├── utils.py            # Greptile client configuration and helpers
-│   └── tests/              # Unit and integration tests
-├── .env.example            # Template for environment variables
-├── pyproject.toml          # Dependencies and project metadata
-├── Dockerfile              # Container setup
-└── README.md               # Documentation
-```
+> Fill in `.env` using `.env.example` and set your `GREPTILE_API_KEY` and `GITHUB_TOKEN` before running.
 
-## Table of Contents
+For full prerequisites, advanced agent usage, integration, and troubleshooting:
+**See the [full documentation in `docs/README.md`](docs/README.md) and agent details in [AGENT_USAGE.md](./AGENT_USAGE.md).**
 
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Running the Server](#running-the-server)
-- [Integration with MCP Clients](#integration-with-mcp-clients)
-- [Detailed Usage Guide](#detailed-usage-guide)
-- [API Reference](#api-reference)
-- [Integration Examples](#integration-examples)
-- [Troubleshooting](#troubleshooting)
-- [Advanced Configuration](#advanced-configuration)
-- [Contributing](#contributing)
-- [License](#license)
-- [Smithery Deployment](#smithery-deployment)
+---
+
+An MCP (Model Context Protocol) server implementation that integrates with the Greptile API to provide code search and querying capabilities to AI agents.
+
+[![smithery badge](https://smithery.ai/badge/@sosacrazy126/greptile-mcp)](https://smithery.ai/server/@sosacrazy126/greptile-mcp)
 
 ## Features
 
@@ -826,4 +813,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-Built with ❤️ by the [Greptile Team](https://github.com/greptileai) 
+Built by (https://github.com/sosacrazy126) 
