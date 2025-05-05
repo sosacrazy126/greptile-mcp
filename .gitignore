@@ -19,6 +19,12 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
+pytest_report.xml
+coverage/
+.coverage
+coverage.xml
+htmlcov/
 
 # Environment variables
 .env
@@ -28,15 +34,29 @@ wheels/
 .env.production.local
 
 # Virtual environments
-.venv
+.venv/
 venv/
 ENV/
+env/
+env.bak/
+venv.bak/
+pythonenv*
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+*.sublime-workspace
+*.sublime-project
+.vs/
+.spyderproject
+.spyproject
+.ropeproject
+.history/
+.autoenv.zsh
+.envrc
+.direnv/
 
 # OS
 .DS_Store
@@ -46,26 +66,64 @@ ENV/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Added by Claude Task Master
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 dev-debug.log
+pip-log.txt
+pip-delete-this-directory.txt
+
 # Dependency directories
 node_modules/
-# Editor directories and files
-.idea
-.vscode
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-# OS specific
-# Task files
-tasks.json
-tasks/ 
+jspm_packages/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.pid
+*.seed
+*.pid.lock
+.lock-wscript
+.node_repl_history
+.yarn-integrity
+.editorconfig
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Greptile MCP specific
+phases_output/
+**/temp/
+**/tmp/
+scripts/temp_*.json
+scripts/output_*.json
+.greptile-cache/
+memory-bank/temp_*.md
+
+# CI/CD
+.github/.cache/
+.gitlab/.cache/
+.circleci/.cache/
+
+# Misc
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.ipynb_checkpoints
+profile_default/
+ipython_config.py

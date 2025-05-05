@@ -1,0 +1,82 @@
+# Git
+.git/
+.gitignore
+.github/
+.gitlab/
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+pytest_report.xml
+coverage/
+.coverage
+coverage.xml
+htmlcov/
+
+# Environment and configuration
+.env
+.env.*
+venv/
+.venv/
+ENV/
+env/
+.python-version
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+.history/
+
+# Logs
+logs/
+*.log
+
+# Testing and documentation
+tests/
+docs/
+README.md
+CONTRIBUTING.md
+LICENSE
+CHANGELOG.md
+
+# Project specific
+phases_output/
+scripts/temp_*.json
+scripts/output_*.json
+.greptile-cache/
+memory-bank/temp_*.md
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+tmp/
+temp/
+
+# Dependency management
+node_modules/
+package-lock.json
+yarn.lock

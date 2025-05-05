@@ -1,0 +1,43 @@
+# Task ID: 2
+# Title: Implement Rate Limiting for API Calls
+# Status: done
+# Dependencies: None
+# Priority: medium
+# Description: Add rate limiting awareness to prevent API throttling and ensure optimal service availability.
+# Details:
+Implement a rate limiting mechanism for API calls to the Greptile service. This should include tracking request frequency, respecting API rate limits, implementing exponential backoff for retries, and providing clear feedback when rate limits are reached. The implementation should help prevent API throttling and ensure continued service availability.
+
+# Test Strategy:
+Test rate limiting under various load conditions, verify backoff mechanisms work correctly, and ensure proper error handling when rate limits are reached.
+
+# Subtasks:
+## 2.1. Implement Request Rate Tracking [done]
+### Dependencies: None
+### Description: Create a system to track API request frequency and rate.
+### Details:
+Develop a system to track API request frequency and rate for different endpoints. This includes implementing counters, timers, and rate calculators that monitor usage patterns and identify potential rate limit issues.
+
+## 2.2. Add Rate Limit Detection and Response Handling [done]
+### Dependencies: None
+### Description: Add logic to detect rate limit responses and handle them appropriately.
+### Details:
+Implement detection for rate limit responses from the Greptile API and create appropriate handling logic. This includes parsing rate limit headers, interpreting error responses, and providing useful feedback to clients about rate limiting status.
+
+## 2.3. Implement Exponential Backoff for Retries [done]
+### Dependencies: None
+### Description: Create an exponential backoff mechanism for retrying rate-limited requests.
+### Details:
+Develop an exponential backoff algorithm for retrying requests that encounter rate limits. This should include configurable base times, maximum retry counts, and jitter to prevent thundering herd problems.
+
+## 2.4. Add Request Queuing and Prioritization [done]
+### Dependencies: None
+### Description: Implement a queue system for managing requests under rate limiting conditions.
+### Details:
+Create a request queuing and prioritization system that can manage API calls when rate limits are approaching. This includes queue management, priority assignment, and fair scheduling to ensure critical operations are not blocked.
+
+## 2.5. Create Rate Limit Configuration System [done]
+### Dependencies: None
+### Description: Develop a configuration system for rate limit parameters and behaviors.
+### Details:
+Build a flexible configuration system for rate limit parameters, including customizable limits, timeouts, retry policies, and priority settings. The system should allow for environment-specific configurations and runtime adjustments.
+

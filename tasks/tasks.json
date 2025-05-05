@@ -1,0 +1,313 @@
+{
+  "tasks": [
+    {
+      "id": "1",
+      "title": "Enhance Streaming Support for Query Responses",
+      "description": "Implement improved streaming capabilities for query responses to enhance real-time feedback and user experience.",
+      "details": "Enhance the current implementation to provide better streaming support for query responses. This includes implementing server-sent events (SSE) and improving real-time data transmission for repository queries. The implementation should handle large repository queries efficiently and provide immediate feedback for long-running operations.",
+      "testStrategy": "Test streaming functionality with large repository queries to ensure proper transmission and error handling. Verify real-time updates are delivered correctly using both SSE and stdio protocols.",
+      "priority": "high",
+      "status": "done",
+      "dependencies": [],
+      "subtasks": [
+        {
+          "id": "1.1",
+          "title": "Implement Server-Sent Events (SSE) for Streaming Responses",
+          "description": "Set up SSE protocol support for real-time streaming of query results.",
+          "details": "Implement Server-Sent Events (SSE) protocol support in the MCP server to enable real-time streaming of query responses to clients. This includes setting up proper event formatting, content-type headers, and connection management. The implementation should allow clients to receive incremental updates as query results become available.",
+          "status": "done"
+        },
+        {
+          "id": "1.2",
+          "title": "Enhance Standard I/O Transport for Streaming",
+          "description": "Improve stdio transport layer to support real-time streaming of query results.",
+          "details": "Enhance the stdio transport layer to properly handle streaming data with appropriate encoding and chunking. Ensure proper buffer management and data formatting for stdio-based clients, including handling for newlines, backpressure, and flow control.",
+          "status": "done"
+        },
+        {
+          "id": "1.3",
+          "title": "Implement Error Handling for Streaming Connections",
+          "description": "Create robust error handling for streaming connections to handle disconnections and failures.",
+          "details": "Implement comprehensive error handling for streaming connections, including graceful handling of client disconnections, server errors during streaming, and network interruptions. The system should be able to recover from errors and provide meaningful error information to clients.",
+          "status": "done"
+        },
+        {
+          "id": "1.4",
+          "title": "Add Timeout and Keepalive Mechanisms",
+          "description": "Implement timeout and keepalive mechanisms for long-running streaming operations.",
+          "details": "Develop timeout controls and keepalive mechanisms for long-running streaming operations to prevent resource exhaustion and maintain connection health. This includes implementing heartbeat messages, configurable timeouts, and graceful connection termination procedures.",
+          "status": "done"
+        },
+        {
+          "id": "1.5",
+          "title": "Implement Buffer Management and Flow Control",
+          "description": "Create buffer management and flow control mechanisms for efficient streaming.",
+          "details": "Implement efficient buffer management and flow control mechanisms to handle varying client consumption rates and prevent memory issues with large result sets. This includes chunk size optimization, backpressure handling, and memory usage monitoring.",
+          "status": "done"
+        },
+        {
+          "id": "1.6",
+          "title": "Add Stream Progress Reporting",
+          "description": "Implement progress reporting for long-running streaming operations.",
+          "details": "Add progress reporting capabilities to streaming responses to provide clients with information about the status of long-running operations. This includes reporting on indexing progress, query execution stages, and estimated completion times.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "title": "Implement Rate Limiting for API Calls",
+      "description": "Add rate limiting awareness to prevent API throttling and ensure optimal service availability.",
+      "details": "Implement a rate limiting mechanism for API calls to the Greptile service. This should include tracking request frequency, respecting API rate limits, implementing exponential backoff for retries, and providing clear feedback when rate limits are reached. The implementation should help prevent API throttling and ensure continued service availability.",
+      "testStrategy": "Test rate limiting under various load conditions, verify backoff mechanisms work correctly, and ensure proper error handling when rate limits are reached.",
+      "priority": "medium",
+      "status": "done",
+      "dependencies": [],
+      "subtasks": [
+        {
+          "id": "2.1",
+          "title": "Implement Request Rate Tracking",
+          "description": "Create a system to track API request frequency and rate.",
+          "details": "Develop a system to track API request frequency and rate for different endpoints. This includes implementing counters, timers, and rate calculators that monitor usage patterns and identify potential rate limit issues.",
+          "status": "done"
+        },
+        {
+          "id": "2.2",
+          "title": "Add Rate Limit Detection and Response Handling",
+          "description": "Add logic to detect rate limit responses and handle them appropriately.",
+          "details": "Implement detection for rate limit responses from the Greptile API and create appropriate handling logic. This includes parsing rate limit headers, interpreting error responses, and providing useful feedback to clients about rate limiting status.",
+          "status": "done"
+        },
+        {
+          "id": "2.3",
+          "title": "Implement Exponential Backoff for Retries",
+          "description": "Create an exponential backoff mechanism for retrying rate-limited requests.",
+          "details": "Develop an exponential backoff algorithm for retrying requests that encounter rate limits. This should include configurable base times, maximum retry counts, and jitter to prevent thundering herd problems.",
+          "status": "done"
+        },
+        {
+          "id": "2.4",
+          "title": "Add Request Queuing and Prioritization",
+          "description": "Implement a queue system for managing requests under rate limiting conditions.",
+          "details": "Create a request queuing and prioritization system that can manage API calls when rate limits are approaching. This includes queue management, priority assignment, and fair scheduling to ensure critical operations are not blocked.",
+          "status": "done"
+        },
+        {
+          "id": "2.5",
+          "title": "Create Rate Limit Configuration System",
+          "description": "Develop a configuration system for rate limit parameters and behaviors.",
+          "details": "Build a flexible configuration system for rate limit parameters, including customizable limits, timeouts, retry policies, and priority settings. The system should allow for environment-specific configurations and runtime adjustments.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "title": "Add Caching Mechanism for Frequent API Calls",
+      "description": "Implement caching to reduce API usage and improve response times for frequently requested data.",
+      "details": "Design and implement a caching system for frequently made API calls to reduce overall API usage and improve response times. This should include configurable TTL (Time-To-Live) settings, cache invalidation strategies, and memory management to prevent excessive resource usage.",
+      "testStrategy": "Test cache hit/miss ratios, verify cache invalidation works correctly, and measure performance improvements with the caching layer enabled vs. disabled.",
+      "priority": "medium",
+      "status": "done",
+      "dependencies": [],
+      "subtasks": [
+        {
+          "id": "3.1",
+          "title": "Design Cache Key Generation System",
+          "description": "Create a robust cache key generation system for API calls.",
+          "details": "Design and implement a cache key generation system that creates unique and consistent keys for API calls based on their parameters and context. The system should handle complex data structures and ensure cache hits for identical requests.",
+          "status": "done"
+        },
+        {
+          "id": "3.2",
+          "title": "Implement In-Memory Cache Store",
+          "description": "Create an efficient in-memory cache store for API responses.",
+          "details": "Develop an in-memory cache store for API responses that balances performance and memory usage. Implement data structures that allow for fast lookups while preventing memory leaks and excessive resource consumption.",
+          "status": "done"
+        },
+        {
+          "id": "3.3",
+          "title": "Add TTL and Cache Invalidation Mechanisms",
+          "description": "Implement TTL settings and cache invalidation strategies.",
+          "details": "Add configurable Time-To-Live (TTL) settings for cached items and implement cache invalidation strategies including expiration-based, update-based, and explicit invalidation. Ensure the system can handle varying freshness requirements for different types of data.",
+          "status": "done"
+        },
+        {
+          "id": "3.4",
+          "title": "Create Cache Size Management and Eviction Policies",
+          "description": "Implement cache size management and eviction policies to control memory usage.",
+          "details": "Build a cache size management system with configurable limits and intelligent eviction policies (LRU, LFU, etc.) to prevent memory problems. Include monitoring capabilities to track cache size and performance metrics.",
+          "status": "done"
+        },
+        {
+          "id": "3.5",
+          "title": "Integrate Caching with API Client",
+          "description": "Integrate the caching system with the Greptile API client.",
+          "details": "Integrate the caching system with the Greptile API client code to intercept and cache appropriate requests. Include options to bypass the cache when needed and handle cache misses transparently.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "title": "Set Up Unit Tests for Client Functionality",
+      "description": "Create a comprehensive unit testing framework for the Greptile client implementation.",
+      "details": "Develop unit tests to verify the correct functionality of the Greptile client implementation. Tests should cover API request handling, response parsing, error handling, authentication, and other core client functions. Use mocking to simulate API responses and error conditions.",
+      "testStrategy": "Implement test coverage metrics and aim for at least 80% code coverage. Ensure tests run as part of CI/CD pipeline.",
+      "priority": "high",
+      "status": "done",
+      "dependencies": [],
+      "subtasks": [
+        {
+          "id": "4.1",
+          "title": "Set Up Testing Framework and Environment",
+          "description": "Configure the testing framework and environment for the client tests.",
+          "details": "Set up the testing framework (pytest) with appropriate configurations, fixtures, and utilities for testing the Greptile client. Create a testing environment with mocks and stubs for external dependencies.",
+          "status": "done"
+        },
+        {
+          "id": "4.2",
+          "title": "Create API Request Formation Tests",
+          "description": "Develop tests for API request formation and parameter validation.",
+          "details": "Create unit tests that verify correct API request formation, URL construction, header setting, and parameter validation for all client methods. Tests should cover both valid and invalid parameter scenarios.",
+          "status": "done"
+        },
+        {
+          "id": "4.3",
+          "title": "Implement Authentication and Authorization Tests",
+          "description": "Create tests for authentication and authorization functionality.",
+          "details": "Implement tests for authentication and authorization functionality, including API key validation, token handling, and authentication error scenarios. Tests should verify that authentication information is properly included in requests.",
+          "status": "done"
+        },
+        {
+          "id": "4.4",
+          "title": "Develop Response Parsing and Handling Tests",
+          "description": "Create tests for response parsing and handling logic.",
+          "details": "Develop comprehensive tests for response parsing and handling logic, including successful responses, error responses, and edge cases like empty or malformed responses. Verify that response data is correctly transformed into the expected formats.",
+          "status": "done"
+        },
+        {
+          "id": "4.5",
+          "title": "Implement Error Handling and Recovery Tests",
+          "description": "Create tests for error handling and recovery mechanisms.",
+          "details": "Implement tests for error handling and recovery mechanisms, including network errors, timeouts, rate limits, and server errors. Verify that errors are properly caught, logged, and handled according to the defined error policies.",
+          "status": "done"
+        },
+        {
+          "id": "4.6",
+          "title": "Set Up Test Coverage Reporting",
+          "description": "Configure test coverage reporting and tracking.",
+          "details": "Set up test coverage reporting and tracking to measure the effectiveness of the test suite. Configure tools to generate coverage reports, set up thresholds for acceptable coverage, and integrate with the development workflow.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "title": "Create Integration Tests for MCP Tools",
+      "description": "Implement integration tests that verify the proper functioning of all MCP tools with the Greptile API.",
+      "details": "Develop integration tests for all four MCP tools: repository indexing, querying, searching, and information retrieval. Tests should validate the proper integration between the MCP server and the Greptile API, including error handling and response processing.",
+      "testStrategy": "Create test scenarios that cover normal operation, error conditions, edge cases, and performance considerations. Tests should run against a test repository to validate actual API integration.",
+      "priority": "high",
+      "status": "done",
+      "dependencies": [],
+      "subtasks": [
+        {
+          "id": "5.1",
+          "title": "Implement Repository Indexing Integration Tests",
+          "description": "Create integration tests for the repository indexing tool.",
+          "details": "Develop integration tests for the repository indexing tool that validate its interaction with the Greptile API. Tests should cover successful indexing, error handling, status checking, and various repository configurations.",
+          "status": "done"
+        },
+        {
+          "id": "5.2",
+          "title": "Create Repository Querying Integration Tests",
+          "description": "Develop integration tests for the repository querying tool.",
+          "details": "Create comprehensive integration tests for the repository querying tool that verify its ability to send queries to the Greptile API and process the responses correctly. Tests should cover various query types, response formats, and error conditions.",
+          "status": "done"
+        },
+        {
+          "id": "5.3",
+          "title": "Implement Repository Searching Integration Tests",
+          "description": "Develop integration tests for the repository searching tool.",
+          "details": "Implement integration tests for the repository searching tool that validate its ability to search repositories for relevant files. Tests should verify correct search parameter handling, result processing, and error management.",
+          "status": "done"
+        },
+        {
+          "id": "5.4",
+          "title": "Create Repository Information Retrieval Tests",
+          "description": "Develop integration tests for the repository information retrieval tool.",
+          "details": "Create integration tests for the repository information retrieval tool that verify its ability to fetch metadata about indexed repositories. Tests should cover various repository states, formats, and error conditions.",
+          "status": "done"
+        },
+        {
+          "id": "5.5",
+          "title": "Implement End-to-End Testing Scenarios",
+          "description": "Develop end-to-end test scenarios that use multiple MCP tools together.",
+          "details": "Create comprehensive end-to-end test scenarios that validate the interaction between multiple MCP tools in sequence (e.g., indexing a repository and then querying it). Tests should verify correct data flow and state management between operations.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "title": "Test with Actual Greptile API Credentials",
+      "description": "Perform comprehensive testing using real Greptile API credentials to validate production functionality.",
+      "details": "Set up a testing environment with actual Greptile API credentials to validate the system's behavior in a production-like setting. This includes testing authentication, rate limits, full repository indexing, and query capabilities with real-world repositories.",
+      "testStrategy": "Use a dedicated test account and repositories to avoid impacting production systems. Document test results and any discrepancies between expected and actual behavior.",
+      "priority": "medium",
+      "status": "done",
+      "dependencies": []
+    },
+    {
+      "id": "7",
+      "title": "Add Detailed API Documentation",
+      "description": "Create comprehensive documentation for all API endpoints and functionality.",
+      "details": "Develop detailed documentation for the MCP server API and Greptile client implementation. Documentation should include endpoint specifications, parameter details, response formats, error codes, and usage examples. Use a standardized format like OpenAPI to ensure consistency and enable automated documentation generation.",
+      "testStrategy": "Review documentation for accuracy, completeness, and clarity. Validate examples to ensure they reflect current implementation.",
+      "priority": "high",
+      "status": "done",
+      "dependencies": []
+    },
+    {
+      "id": "8",
+      "title": "Create Usage Examples",
+      "description": "Develop practical usage examples and code snippets to demonstrate MCP functionality.",
+      "details": "Create comprehensive usage examples that demonstrate how to use the Greptile MCP system for common tasks. Examples should cover repository indexing, querying, searching, and information retrieval. Include both curl commands for direct API access and Python code examples for programmatic usage.",
+      "testStrategy": "Verify all examples work as expected with the current implementation. Test examples with users of varying technical backgrounds to ensure clarity.",
+      "priority": "medium",
+      "status": "done",
+      "dependencies": []
+    },
+    {
+      "id": "9",
+      "title": "Document Error Codes and Troubleshooting",
+      "description": "Create comprehensive error code documentation and troubleshooting guides.",
+      "details": "Document all error codes returned by the MCP server and Greptile client, including their meanings and suggested resolutions. Create troubleshooting guides for common issues like API connection problems, authentication failures, rate limiting, and repository access issues.",
+      "testStrategy": "Review documentation for completeness and accuracy. Validate troubleshooting steps against known issues.",
+      "priority": "medium",
+      "status": "done",
+      "dependencies": []
+    },
+    {
+      "id": "10",
+      "title": "Finalize Deployment Instructions and Scripts",
+      "description": "Create comprehensive deployment documentation and automation scripts.",
+      "details": "Develop detailed deployment instructions for various environments (local, Docker, cloud). Create automation scripts to simplify deployment processes. Include environment setup, configuration options, security considerations, and scaling guidance.",
+      "testStrategy": "Test deployment instructions in clean environments to verify accuracy and completeness. Validate automation scripts in various settings.",
+      "priority": "high",
+      "status": "done",
+      "dependencies": []
+    },
+    {
+      "id": "11",
+      "title": "Set Up Continuous Integration for Testing",
+      "description": "Implement CI pipeline for automated testing and quality assurance.",
+      "details": "Set up a continuous integration pipeline using GitHub Actions or similar tool to automatically run tests, check code quality, and verify build status with each commit. Include unit tests, integration tests, linting, and documentation generation in the pipeline.",
+      "testStrategy": "Test the CI pipeline with various scenarios including passing and failing tests to ensure proper reporting and notifications.",
+      "priority": "medium",
+      "status": "done",
+      "dependencies": []
+    }
+  ]
+}
