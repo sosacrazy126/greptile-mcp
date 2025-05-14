@@ -101,11 +101,13 @@ async def mcp_execute_tool(request: Request):
         raise HTTPException(status_code=400, detail="Invalid JSON body")
 
     method = body.get('method')
+    request_id = body.get('id')
 
     # Handle initialize method
     if method == 'initialize':
         return {
-            "id": body.get('id'),
+            "jsonrpc": "2.0",
+            "id": request_id,
             "result": {
                 "protocolVersion": "0.1.0",
                 "capabilities": {
@@ -119,33 +121,64 @@ async def mcp_execute_tool(request: Request):
             }
         }
 
+    # Handle tool listing method
+    if method == 'tools/list':
+        tools = await list_tools_response()
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": tools
+        }
+
     if method != 'tools/call':
         return JSONResponse(
-            content={"error": f"Unsupported method: {method}"},
-            status_code=400
+            content={
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32601,
+                    "message": f"Unsupported method: {method}"
+                }
+            },
+            status_code=200  # JSON-RPC errors still return 200
         )
 
     # Extract tool call parameters
     params = body.get('params', {})
     tool_name = params.get('name')
     tool_args = params.get('arguments', {})
+    request_id = body.get('id')
 
     # Validate tool exists through tool_manager
     tool_manager = greptile_mcp._tool_manager
     if tool_name not in tool_manager._tools:
         return JSONResponse(
-            content={"error": f"Tool '{tool_name}' not found"},
-            status_code=404
+            content={
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32602,
+                    "message": f"Tool '{tool_name}' not found"
+                }
+            },
+            status_code=200  # JSON-RPC errors still return 200
         )
 
     # Check for required API keys only when executing tools
     if not os.getenv('GREPTILE_API_KEY') or not os.getenv('GITHUB_TOKEN'):
         return JSONResponse(
             content={
-                "error": "API keys required for tool execution",
-                "detail": "Please provide GREPTILE_API_KEY and GITHUB_TOKEN in configuration"
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32603,
+                    "message": "API keys required for tool execution",
+                    "data": {
+                        "detail": "Please provide GREPTILE_API_KEY and GITHUB_TOKEN in configuration"
+                    }
+                }
             },
-            status_code=401
+            status_code=200  # JSON-RPC errors still return 200
         )
 
     # Initialize Greptile client/context only now (lazy)
@@ -157,8 +190,15 @@ async def mcp_execute_tool(request: Request):
         )
     except Exception as e:
         return JSONResponse(
-            content={"error": f"Failed to initialize Greptile client: {str(e)}"},
-            status_code=500
+            content={
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32603,
+                    "message": f"Failed to initialize Greptile client: {str(e)}"
+                }
+            },
+            status_code=200  # JSON-RPC errors still return 200
         )
 
     # Create context for tool execution
@@ -197,29 +237,39 @@ async def mcp_execute_tool(request: Request):
             # It's a list of content items
             content_list = list(result)
             return {
-                "id": body.get('id'),
+                "jsonrpc": "2.0",
+                "id": request_id,
                 "result": content_list
             }
         elif isinstance(result, str):
             # It's a direct string result
             return {
-                "id": body.get('id'),
+                "jsonrpc": "2.0",
+                "id": request_id,
                 "result": [{"type": "text", "text": result}]
             }
         else:
             # Return as is
             return {
-                "id": body.get('id'),
+                "jsonrpc": "2.0",
+                "id": request_id,
                 "result": result
             }
     except Exception as e:
         return JSONResponse(
             content={
-                "error": f"Tool execution failed: {str(e)}",
-                "tool": tool_name,
-                "args": tool_args
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32603,
+                    "message": f"Tool execution failed: {str(e)}",
+                    "data": {
+                        "tool": tool_name,
+                        "args": tool_args
+                    }
+                }
             },
-            status_code=500
+            status_code=200  # JSON-RPC errors still return 200
         )
 
 @app.delete("/mcp")
