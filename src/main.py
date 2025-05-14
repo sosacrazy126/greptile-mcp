@@ -70,7 +70,7 @@ mcp = FastMCP(
 )        
 
 @mcp.tool()
-async def index_repository(ctx: Context, remote: str, repository: str, branch: str, reload: bool = False, notify: bool = False) -> str:
+async def index_repository(ctx: Context, remote: str, repository: str, branch: str, reload: bool = True, notify: bool = False) -> str:
     """Index a repository for code search and querying.
     
     This tool initiates the processing of a repository, making it available for future queries.
@@ -81,7 +81,8 @@ async def index_repository(ctx: Context, remote: str, repository: str, branch: s
         remote: The repository host, either "github" or "gitlab"
         repository: The repository in owner/repo format (e.g., "coleam00/mcp-mem0")
         branch: The branch to index (e.g., "main")
-        reload: Whether to force reprocessing of the repository (default: False)
+        reload: Whether to force reprocessing of the repository (default: True). 
+                When False, won't reprocess if previously indexed successfully.
         notify: Whether to send an email notification when indexing is complete (default: False)
     """
     try:

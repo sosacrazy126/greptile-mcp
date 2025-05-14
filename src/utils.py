@@ -78,7 +78,7 @@ class GreptileClient:
         remote: str, 
         repository: str, 
         branch: str, 
-        reload: bool = False, 
+        reload: bool = True, 
         notify: bool = False
     ) -> Dict[str, Any]:
         """
@@ -88,8 +88,9 @@ class GreptileClient:
             remote: The repository host, either "github" or "gitlab"
             repository: The repository in owner/repo format
             branch: The branch to index
-            reload: Whether to force reprocessing
-            notify: Whether to send an email notification
+            reload: Whether to force reprocessing (default: True).
+                   When False, won't reprocess if previously indexed successfully.
+            notify: Whether to send an email notification (default: False)
 
         Returns:
             The API response as a dictionary
