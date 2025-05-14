@@ -13,28 +13,12 @@ import httpx
 from contextlib import asynccontextmanager
 import asyncio
 
-from src.main import mcp as greptile_mcp, greptile_lifespan, GreptileContext
+# Import only the tool definitions/metadata, not the context or lifespan
+from src.main import mcp as greptile_mcp, GreptileContext
 from src.utils import get_greptile_client
 
-# Create FastAPI app
+# Create FastAPI app (without custom lifespan event)
 app = FastAPI()
-
-# Global state
-mcp_context: Optional[GreptileContext] = None
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Manage the lifecycle of the Greptile MCP server"""
-    global mcp_context
-    
-    # Initialize the Greptile context
-    async with greptile_lifespan(greptile_mcp) as context:
-        mcp_context = context
-        yield
-        mcp_context = None
-
-# Update app with lifespan
-app = FastAPI(lifespan=lifespan)
 
 async def parse_config(config_b64: Optional[str]) -> Dict[str, Any]:
     """Parse and apply configuration from base64-encoded query parameter"""
@@ -111,8 +95,6 @@ async def mcp_list_tools(request: Request):
     Handle GET request for MCP endpoint - list available tools.
     This endpoint doesn't require authentication (lazy loading).
     """
-    # Parse config but don't require it for listing tools
-    # (Kept for compatibility, but config is not used in listing)
     return list_tools_response()
 
 @app.get("/tools")
@@ -121,7 +103,6 @@ async def tools_list_get(request: Request):
     Handle GET request for /tools endpoint - list available tools.
     This endpoint doesn't require authentication (lazy loading).
     """
-    # Support the same as /mcp for compatibility
     return list_tools_response()
 
 @app.post("/tools")
@@ -135,39 +116,37 @@ async def tools_list_post(request: Request):
 @app.post("/mcp")
 async def mcp_execute_tool(request: Request):
     """Handle POST request for MCP endpoint - execute tools"""
-    global mcp_context
-    
     # Parse config from query parameter
     query_params = parse_qs(str(request.url.query))
     config_b64 = query_params.get('config', [None])[0]
     config = await parse_config(config_b64)
-    
+
     # Parse request body
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON body")
-    
+
     method = body.get('method')
-    
+
     if method != 'tools/call':
         return JSONResponse(
             content={"error": f"Unsupported method: {method}"},
             status_code=400
         )
-    
+
     # Extract tool call parameters
     params = body.get('params', {})
     tool_name = params.get('name')
     tool_args = params.get('arguments', {})
-    
+
     # Validate tool exists
     if tool_name not in greptile_mcp.tools:
         return JSONResponse(
             content={"error": f"Tool '{tool_name}' not found"},
             status_code=404
         )
-    
+
     # Check for required API keys only when executing tools
     if not os.getenv('GREPTILE_API_KEY') or not os.getenv('GITHUB_TOKEN'):
         return JSONResponse(
@@ -177,35 +156,34 @@ async def mcp_execute_tool(request: Request):
             },
             status_code=401
         )
-    
-    # Initialize Greptile client if not already done
-    if not mcp_context or not mcp_context.initialized:
-        try:
-            greptile_client = get_greptile_client()
-            mcp_context = GreptileContext(
-                greptile_client=greptile_client,
-                initialized=True
-            )
-        except Exception as e:
-            return JSONResponse(
-                content={"error": f"Failed to initialize Greptile client: {str(e)}"},
-                status_code=500
-            )
-    
+
+    # Initialize Greptile client/context only now (lazy)
+    try:
+        greptile_client = get_greptile_client()
+        greptile_context = GreptileContext(
+            greptile_client=greptile_client,
+            initialized=True
+        )
+    except Exception as e:
+        return JSONResponse(
+            content={"error": f"Failed to initialize Greptile client: {str(e)}"},
+            status_code=500
+        )
+
     # Create context for tool execution
     class MockContext:
         def __init__(self, greptile_context):
             self.request_context = type('RequestContext', (), {
                 'lifespan_context': greptile_context
             })()
-    
-    ctx = MockContext(mcp_context)
-    
+
+    ctx = MockContext(greptile_context)
+
     # Execute the tool
     try:
         tool_func = greptile_mcp.tools[tool_name]
         result = await tool_func(ctx, **tool_args)
-        
+
         # Format response
         return {
             "id": body.get('id'),
@@ -224,14 +202,7 @@ async def mcp_execute_tool(request: Request):
 @app.delete("/mcp")
 async def mcp_cleanup(request: Request):
     """Handle DELETE request for MCP endpoint - cleanup resources"""
-    global mcp_context
-    
-    if mcp_context and hasattr(mcp_context, 'greptile_client'):
-        try:
-            await mcp_context.greptile_client.aclose()
-        except Exception:
-            pass
-    
+    # If you have a global context, clean up here, but now it's per-request
     return {"status": "cleanup complete"}
 
 @app.get("/health")
