@@ -63,11 +63,246 @@ async def greptile_lifespan(server: FastMCP) -> AsyncIterator[GreptileContext]:
 # Initialize FastMCP server with the Greptile client and session manager as context
 mcp = FastMCP(
     "mcp-greptile",
-    description="MCP server for code search and querying with Greptile API",
+    description="""🔍 Greptile MCP - Natural Language Code Search & Analysis
+
+Search and analyze code across multiple repositories using natural language queries.
+Perfect for understanding codebases, comparing implementations, and finding patterns.
+
+QUICK START:
+1. Use 'greptile_help' tool for complete guide
+2. Index repos first: index_repository("github", "owner/repo", "branch")  
+3. Query them: query_simple(ctx, "your question", [repos])
+
+Key Features:
+✓ Multi-repository search and analysis
+✓ Natural language queries
+✓ Code-aware responses with references
+✓ Framework comparisons
+✓ Pattern matching across codebases
+
+Common Use Cases:
+- "How does authentication work?"
+- "Compare error handling in Express vs Koa"
+- "Find all uses of WebSocket"
+- "Explain the architecture of this service"
+""",
     lifespan=greptile_lifespan,
     host=os.getenv("HOST", "0.0.0.0"),
     port=os.getenv("PORT", "8050")
 )        
+
+@mcp.tool()
+async def greptile_help(ctx: Context) -> str:
+    """
+    Get started with Greptile MCP - Your guide to searching and analyzing code repositories.
+    
+    This tool provides comprehensive documentation on how to use all Greptile MCP features.
+    """
+    help_text = """
+# 🚀 Greptile MCP Quick Start Guide
+
+Welcome to Greptile MCP! This tool provides AI expertise for any codebase, helping you understand code structure and get custom integration instructions.
+
+## 🎯 Objectives - What You Can Do
+
+### 1. Understand Code Architecture
+- Analyze authentication flows in codebases
+- Understand component relationships
+- Map out service architectures
+- Trace data flow through systems
+
+### 2. Add Features with AI Guidance
+- Get step-by-step implementation instructions
+- Add authentication (Google Sign-in, OAuth, etc.)
+- Integrate third-party services
+- Implement new functionality with best practices
+
+### 3. Compare & Learn
+- Compare implementations across frameworks
+- Understand different approaches to similar problems
+- Learn from open-source codebases
+- Make informed architectural decisions
+
+### 4. Speed Up Development
+- Get up to speed on new codebases quickly
+- Find relevant code examples
+- Understand existing patterns before coding
+- Reduce time spent reading documentation
+
+## 📋 Real-World Example: Adding Google Sign-In
+
+Here's a complete workflow for adding authentication to your app:
+
+### Step 1: Index Your Application
+```python
+# Add your app's repository
+await index_repository(ctx, "github", "mycompany/myapp", "main")
+```
+
+### Step 2: Understand Current Authentication
+```python
+repos = [{"remote": "github", "repository": "mycompany/myapp", "branch": "main"}]
+result = await query_repository(ctx, 
+    "How does authentication work in this codebase? Show me the auth flow",
+    repos
+)
+```
+
+### Step 3: Add Authentication Library Context
+```python
+# Add the auth library your app uses (e.g., NextAuth)
+await index_repository(ctx, "github", "nextauthjs/next-auth", "main")
+
+repos = [
+    {"remote": "github", "repository": "mycompany/myapp", "branch": "main"},
+    {"remote": "github", "repository": "nextauthjs/next-auth", "main": "main"}
+]
+```
+
+### Step 4: Get Implementation Instructions
+```python
+result = await query_repository(ctx,
+    "How do I add Google Sign-in to this application? Give me step-by-step instructions",
+    repos
+)
+```
+
+### Step 5: Follow AI-Generated Instructions
+Greptile will provide:
+- Required library installations
+- Google provider configuration
+- Environment variable setup (.env.local)
+- Code changes needed
+- Component updates
+- Testing instructions
+
+## 🛠️ Common Use Cases
+
+### Understanding a New Codebase
+```python
+# 1. Index the repository
+await index_repository(ctx, "github", "strapi/strapi", "main")
+
+# 2. Ask architectural questions
+repos = [{"remote": "github", "repository": "strapi/strapi", "branch": "main"}]
+await query_repository(ctx, "Explain the plugin architecture", repos)
+await query_repository(ctx, "How does the database layer work?", repos)
+await query_repository(ctx, "What's the authentication flow?", repos)
+```
+
+### Comparing Implementations
+```python
+# Compare authentication in different frameworks
+repos = [
+    {"remote": "github", "repository": "nestjs/nest", "branch": "master"},
+    {"remote": "github", "repository": "expressjs/express", "branch": "master"}
+]
+result = await compare_repositories(ctx,
+    "How do these frameworks handle authentication middleware?",
+    repos
+)
+```
+
+### Finding Code Patterns
+```python
+# Search for WebSocket implementations
+repos = [
+    {"remote": "github", "repository": "socketio/socket.io", "branch": "main"},
+    {"remote": "github", "repository": "mycompany/myapp", "branch": "main"}
+]
+result = await search_repository(ctx,
+    "WebSocket connection handling",
+    repos
+)
+```
+
+## 🔧 Basic Workflow
+
+### Step 1: Index Repositories
+```python
+await index_repository(ctx, "github", "owner/repo", "branch")
+```
+
+### Step 2: Create Repository List
+```python
+repos = [{
+    "remote": "github",
+    "repository": "owner/repo",
+    "branch": "main"
+}]
+```
+
+### Step 3: Query with Natural Language
+```python
+result = await query_repository(ctx, "Your question here", repos)
+```
+
+## 📚 Available Tools
+
+### Essential Tools
+1. `greptile_help` - This guide
+2. `index_repository` - Make repos searchable
+3. `query_repository` - Ask questions with context
+4. `compare_repositories` - Compare implementations
+5. `search_repository` - Find specific patterns
+
+### Repository Format
+```json
+{
+    "remote": "github",      // or "gitlab"
+    "repository": "owner/repo",
+    "branch": "main"
+}
+```
+
+## 💡 Pro Tips
+
+1. **Index First**: Always index repositories before querying
+2. **Add Context**: Include relevant libraries for better answers
+3. **Be Specific**: Ask detailed questions for better results
+4. **Use Examples**: "Show me how X works with code examples"
+5. **Iterative Queries**: Build on previous answers
+
+## ⚠️ Common Mistakes
+
+❌ Wrong repository format: "https://github.com/owner/repo"
+✅ Correct format: "owner/repo"
+
+❌ Not indexing before querying
+✅ Always index first
+
+❌ Vague questions: "How does this work?"
+✅ Specific questions: "How does the auth middleware validate JWT tokens?"
+
+## 🚀 Quick Examples
+
+### Add Feature
+```python
+await query_repository(ctx,
+    "How do I add rate limiting to this Express API?",
+    repos
+)
+```
+
+### Debug Issue
+```python
+await query_repository(ctx,
+    "Why might authentication fail in this flow?",
+    repos
+)
+```
+
+### Best Practices
+```python
+await compare_repositories(ctx,
+    "What are the error handling patterns used?",
+    repos
+)
+```
+
+Happy coding! Use Greptile to understand any codebase and build features faster. 🎉
+"""
+    return help_text
 
 def format_messages_for_api(messages: List[Union[Dict, str]], current_query: str = None) -> List[Dict[str, str]]:
     """
@@ -111,19 +346,29 @@ def format_messages_for_api(messages: List[Union[Dict, str]], current_query: str
 
 @mcp.tool()
 async def index_repository(ctx: Context, remote: str, repository: str, branch: str, reload: bool = True, notify: bool = False) -> str:
-    """Index a repository for code search and querying.
+    """
+    [REQUIRED FIRST STEP] Index a repository to make it searchable.
     
-    This tool initiates the processing of a repository, making it available for future queries.
-    A repository must be indexed before it can be queried or searched.
+    Quick Example:
+    await index_repository(ctx, "github", "facebook/react", "main")
+    
+    Format: repository MUST be "owner/repo" (e.g., "facebook/react", NOT just "react")
     
     Args:
-        ctx: The MCP server provided context which includes the Greptile client
-        remote: The repository host, either "github" or "gitlab"
-        repository: The repository in owner/repo format (e.g., "coleam00/mcp-mem0")
-        branch: The branch to index (e.g., "main")
-        reload: Whether to force reprocessing of the repository (default: True). 
-                When False, won't reprocess if previously indexed successfully.
-        notify: Whether to send an email notification when indexing is complete (default: False)
+        remote: "github" or "gitlab"
+        repository: "owner/repo" format (REQUIRED FORMAT)
+        branch: branch name (e.g., "main", "master", "develop")
+        reload: Force re-index even if already indexed (default: True)
+        notify: Email notification when done (default: False)
+    
+    Common repos:
+    - "facebook/react" (React framework)
+    - "vuejs/core" (Vue.js framework)
+    - "angular/angular" (Angular framework)
+    - "nodejs/node" (Node.js runtime)
+    
+    Returns: JSON with indexing status
+    Note: Must index before querying!
     """
     try:
         greptile_context = ctx.request_context.lifespan_context
@@ -153,29 +398,46 @@ async def query_repository(
     messages: Optional[List[Dict[str, str]]] = None
 ) -> Union[str, AsyncGenerator[str, None]]:
     """
-    Query one or more repositories to get an answer with code references.
+    Query one or more code repositories to get answers with source references.
 
-    Supports both single and multiple repository queries, as well as
-    single-turn and multi-turn (conversational) context with full message history.
-
+    QUICK START:
+    repositories = [
+        {"remote": "github", "repository": "facebook/react", "branch": "main"},
+        {"remote": "github", "repository": "vuejs/core", "branch": "main"}
+    ]
+    result = await query_repository(ctx, "How do these handle state?", repositories)
+    
+    REQUIRED FORMAT:
+    Each repository must have: remote, repository, branch
+    - remote: "github" or "gitlab"
+    - repository: "owner/repo" format (e.g., "facebook/react")
+    - branch: branch name (e.g., "main", "master", "develop")
+    
+    FEATURES:
+    ✓ Query multiple repositories simultaneously
+    ✓ Get answers with specific code references
+    ✓ Maintain conversation history with session_id
+    ✓ Stream responses for long queries
+    
+    COMMON PATTERNS:
+    1. Single repo: [{"remote": "github", "repository": "owner/repo", "branch": "main"}]
+    2. Compare frameworks: Add multiple repos to compare implementations
+    3. Microservices: Query across related service repositories
+    
     Args:
-        ctx: MCP server provided context
-        query: The natural language query about the codebase(s)
-        repositories: List of repositories to query (supports multiple repos)
-                     Each repository should include:
-                     - remote: "github" or "gitlab"
-                     - repository: "owner/repo" format
-                     - branch: branch name (e.g., "main")
-        session_id: Used for multi-turn conversations; generates new if not provided
-        stream: Enable streaming for long queries (returns async generator)
-        genius: Use enhanced answer quality (may take longer)
-        timeout: Optional per-query timeout (seconds)
-        messages: Optional message history in the format [{"id": "msg1", "content": "...", "role": "user/assistant"}]
-                 This follows the official Greptile API format for messages
-
+        ctx: MCP context (provided automatically)
+        query: Your question about the code
+        repositories: List of repos to search (see format above)
+        session_id: For multi-turn conversations (optional)
+        stream: Enable streaming responses (default: False)
+        genius: Enhanced accuracy mode (default: True)
+        timeout: Max seconds to wait (optional)
+        messages: Previous conversation history (optional)
+    
     Returns:
-        - For streaming: async generator yielding JSON strings.
-        - For non-streaming: formatted JSON string (single result).
+        JSON with answer and source code references
+    
+    Note: Repositories must be indexed first using index_repository()
     """
     try:
         greptile_context = ctx.request_context.lifespan_context
@@ -477,18 +739,23 @@ async def query_simple(
     genius: bool = True
 ) -> str:
     """
-    Simple single-turn query without session management.
+    [EASIEST WAY TO START] Ask a simple question about code repositories.
     
-    This is the easiest way to query repositories for one-off questions.
+    Quick Example:
+    repos = [{"remote": "github", "repository": "facebook/react", "branch": "main"}]
+    result = await query_simple(ctx, "What is useState?", repos)
+    
+    Perfect for:
+    - One-off questions
+    - Quick code lookups  
+    - Simple explanations
     
     Args:
-        ctx: MCP server provided context
-        query: The natural language query about the codebase
-        repositories: List of repositories to query
-        genius: Use enhanced answer quality (default: True)
+        query: Your question about the code
+        repositories: List of repos (see format in example)
+        genius: Use smart mode for better answers (default: True)
     
-    Returns:
-        JSON string with the query result
+    No session management needed - just ask and get answers!
     """
     # Create a single message
     messages = [{
