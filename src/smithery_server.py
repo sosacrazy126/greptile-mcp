@@ -54,16 +54,8 @@ async def parse_config(config_b64: Optional[str]) -> Dict[str, Any]:
         print(f"Error parsing config: {e}")
         return {}
 
-@app.get("/mcp")
-async def mcp_list_tools(request: Request):
-    """
-    Handle GET request for MCP endpoint - list available tools.
-    This endpoint doesn't require authentication (lazy loading).
-    """
-    # Parse config but don't require it for listing tools
-    query_params = parse_qs(str(request.url.query))
-    config_b64 = query_params.get('config', [None])[0]
-    
+def list_tools_response():
+    """Helper function to construct the tools list response for /mcp and /tools endpoints."""
     # Get tool information from the MCP server
     tools = []
     for tool_name, tool_func in greptile_mcp.tools.items():
@@ -77,14 +69,12 @@ async def mcp_list_tools(request: Request):
                 "required": []
             }
         }
-        
         # Extract parameters from function signature
         import inspect
         sig = inspect.signature(tool_func)
         for param_name, param in sig.parameters.items():
             if param_name == 'ctx':  # Skip context parameter
                 continue
-                
             # Add parameter to schema
             param_type = "string"  # Default type
             if param.annotation != inspect.Parameter.empty:
@@ -98,18 +88,14 @@ async def mcp_list_tools(request: Request):
                     param_type = "array"
                 elif param.annotation == dict:
                     param_type = "object"
-            
             tool_info["inputSchema"]["properties"][param_name] = {
                 "type": param_type,
                 "description": ""  # Would need to extract from docstring
             }
-            
             # Mark required parameters
             if param.default == inspect.Parameter.empty:
                 tool_info["inputSchema"]["required"].append(param_name)
-        
         tools.append(tool_info)
-    
     return {
         "capabilities": {
             "tools": True,
@@ -118,6 +104,33 @@ async def mcp_list_tools(request: Request):
         },
         "tools": tools
     }
+
+@app.get("/mcp")
+async def mcp_list_tools(request: Request):
+    """
+    Handle GET request for MCP endpoint - list available tools.
+    This endpoint doesn't require authentication (lazy loading).
+    """
+    # Parse config but don't require it for listing tools
+    # (Kept for compatibility, but config is not used in listing)
+    return list_tools_response()
+
+@app.get("/tools")
+async def tools_list_get(request: Request):
+    """
+    Handle GET request for /tools endpoint - list available tools.
+    This endpoint doesn't require authentication (lazy loading).
+    """
+    # Support the same as /mcp for compatibility
+    return list_tools_response()
+
+@app.post("/tools")
+async def tools_list_post(request: Request):
+    """
+    Handle POST request for /tools endpoint - list available tools.
+    Accepts an empty JSON body or config, compatible with Smithery orchestrator.
+    """
+    return list_tools_response()
 
 @app.post("/mcp")
 async def mcp_execute_tool(request: Request):
