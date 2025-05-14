@@ -1,8 +1,9 @@
 build:
-  dockerfile: Dockerfile
+  dockerfile: Dockerfile.smithery
 
 startCommand:
-  type: stdio
+  type: http
+  port: 8080
   configSchema:
     type: object
     required:
@@ -15,23 +16,18 @@ startCommand:
       githubToken:
         type: string
         description: "GitHub Personal Access Token for repository access"
-      host:
+      greptileBaseUrl:
         type: string
-        description: "Host to bind to when using SSE transport"
-        default: "0.0.0.0"
-      port:
-        type: string
-        description: "Port to listen on when using SSE transport"
-        default: "8050"
+        description: "Custom Greptile API base URL"
+        default: "https://api.greptile.com/v2"
   commandFunction: |
     (config) => ({
       command: 'python',
-      args: ['-m', 'src.main'],
+      args: ['-m', 'src.smithery_server'],
       env: {
         GREPTILE_API_KEY: config.greptileApiKey,
         GITHUB_TOKEN: config.githubToken,
-        TRANSPORT: 'stdio',
-        HOST: config.host || "0.0.0.0",
-        PORT: config.port || "8050"
+        GREPTILE_BASE_URL: config.greptileBaseUrl || "https://api.greptile.com/v2",
+        PORT: "8080"
       }
-    }) 
+    })

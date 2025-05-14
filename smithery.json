@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Natural language code search and analysis across multiple repositories",
   "transport": "http",
+  "httpEndpoint": {
+    "port": 8080
+  },
   "author": "sosacrazy126",
   "license": "MIT",
   "homepage": "https://github.com/sosacrazy126/greptile-mcp",
