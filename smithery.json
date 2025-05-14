@@ -1,68 +1,22 @@
 {
   "name": "greptile-mcp",
-  "version": "1.0.0",
-  "description": "Natural language code search and analysis across multiple repositories",
+  "description": "Natural language code search and analysis",
   "transport": "http",
-  "httpEndpoint": {
-    "port": 8080
+  "endpoint": "/mcp",
+  "tools": {
+    "public": ["greptile_help", "get_repository_info"],
+    "authenticated": ["index_repository", "query_repository", "search_repository", "compare_repositories"]
   },
-  "author": "sosacrazy126",
-  "license": "MIT",
-  "homepage": "https://github.com/sosacrazy126/greptile-mcp",
-  "repository": "https://github.com/sosacrazy126/greptile-mcp",
-  "keywords": [
-    "code-search",
-    "greptile",
-    "repository-analysis",
-    "code-understanding",
-    "mcp"
-  ],
   "config": {
-    "required": [
-      {
-        "name": "GREPTILE_API_KEY",
-        "description": "Your Greptile API key",
-        "type": "string"
-      },
-      {
-        "name": "GITHUB_TOKEN", 
-        "description": "GitHub personal access token for repository access",
-        "type": "string"
-      }
-    ],
-    "optional": [
-      {
-        "name": "GREPTILE_BASE_URL",
-        "description": "Custom Greptile API base URL (default: https://api.greptile.com/v2)",
+    "required": {
+      "GREPTILE_API_KEY": {
         "type": "string",
-        "default": "https://api.greptile.com/v2"
+        "description": "Your Greptile API key"
+      },
+      "GITHUB_TOKEN": {
+        "type": "string",
+        "description": "GitHub personal access token"
       }
-    ]
-  },
-  "tools": [
-    {
-      "name": "greptile_help",
-      "description": "Get comprehensive documentation on using Greptile MCP"
-    },
-    {
-      "name": "index_repository",
-      "description": "Index a repository to make it searchable"
-    },
-    {
-      "name": "query_repository",
-      "description": "Query repositories with natural language"
-    },
-    {
-      "name": "search_repository",
-      "description": "Search for code patterns across repositories"
-    },
-    {
-      "name": "compare_repositories",
-      "description": "Compare implementations across repositories"
-    },
-    {
-      "name": "get_repository_info",
-      "description": "Check repository indexing status"
     }
-  ]
+  }
 }
