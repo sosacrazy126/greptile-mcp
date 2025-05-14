@@ -1,0 +1,22 @@
+{
+  "name": "greptile-mcp",
+  "description": "Natural language code search and analysis",
+  "transport": "http",
+  "endpoint": "/mcp",
+  "tools": {
+    "public": ["greptile_help", "get_repository_info"],
+    "authenticated": ["index_repository", "query_repository", "search_repository", "compare_repositories"]
+  },
+  "config": {
+    "required": {
+      "GREPTILE_API_KEY": {
+        "type": "string",
+        "description": "Your Greptile API key"
+      },
+      "GITHUB_TOKEN": {
+        "type": "string",
+        "description": "GitHub personal access token"
+      }
+    }
+  }
+}
