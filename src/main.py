@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import asyncio
 import json
 import os
+import logging
 from typing import List, Dict, Any, Optional, AsyncGenerator, Union
 
 from src.utils import (
@@ -14,13 +15,18 @@ from src.utils import (
     generate_session_id
 )
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Load environment variables
 load_dotenv()
 
 # Create a dataclass for our application context
 @dataclass
 class GreptileContext:
     """Context for the Greptile MCP server."""
-    greptile_client: object  # The Greptile API client
+    greptile_client: GreptileClient  # The Greptile API client
     initialized: bool = False  # Track if initialization is complete
     session_manager: Optional[SessionManager] = None  # Add session manager for conversation context
 
@@ -64,7 +70,7 @@ mcp = FastMCP(
 )        
 
 @mcp.tool()
-async def index_repository(ctx: Context, remote: str, repository: str, branch: str, reload: bool = False, notify: bool = False) -> str:
+async def index_repository(ctx: Context, remote: str, repository: str, branch: str, reload: bool = True, notify: bool = False) -> str:
     """Index a repository for code search and querying.
     
     This tool initiates the processing of a repository, making it available for future queries.
@@ -75,7 +81,8 @@ async def index_repository(ctx: Context, remote: str, repository: str, branch: s
         remote: The repository host, either "github" or "gitlab"
         repository: The repository in owner/repo format (e.g., "coleam00/mcp-mem0")
         branch: The branch to index (e.g., "main")
-        reload: Whether to force reprocessing of the repository (default: False)
+        reload: Whether to force reprocessing of the repository (default: True). 
+                When False, won't reprocess if previously indexed successfully.
         notify: Whether to send an email notification when indexing is complete (default: False)
     """
     try:

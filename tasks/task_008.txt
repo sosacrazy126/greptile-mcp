@@ -1,0 +1,11 @@
+# Task ID: 8
+# Title: Create Usage Examples
+# Status: done
+# Dependencies: None
+# Priority: medium
+# Description: Develop practical usage examples and code snippets to demonstrate MCP functionality.
+# Details:
+Create comprehensive usage examples that demonstrate how to use the Greptile MCP system for common tasks. Examples should cover repository indexing, querying, searching, and information retrieval. Include both curl commands for direct API access and Python code examples for programmatic usage.
+
+# Test Strategy:
+Verify all examples work as expected with the current implementation. Test examples with users of varying technical backgrounds to ensure clarity.

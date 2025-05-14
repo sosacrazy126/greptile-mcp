@@ -1,12 +1,16 @@
-# Greptile MCP Server
+# Greptile MCP Server [COMPLETED]
 
 **Quick Run Command Cheatsheet**
 
-| Environment   | Setup & Install                                                                                  | Run Command                                   |
-| ------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| **Local (Python)** | `python -m venv .venv && source .venv/bin/activate && pip install -e .`                      | `python -m src.main`                          |
-| **Docker**        | `docker build -t greptile-mcp .`                                                              | `docker run --rm --env-file .env -p 8050:8050 greptile-mcp` |
-| **Smithery**      | `npm install -g smithery`                                                                     | `smithery deploy` (see smithery.yaml)         |
+**✅ PROJECT STATUS: ALL TASKS COMPLETED (11/11)**
+
+Please see [PROJECT_COMPLETION.md](./PROJECT_COMPLETION.md) for a summary of completed work and [USER_GUIDE.md](./USER_GUIDE.md) for usage instructions.
+
+| Environment   | Setup & Install                                                       | Run Command                                   |
+| ------------- | --------------------------------------------------------------------- | --------------------------------------------- |
+| **Local (Python)** | `python -m venv .venv && source .venv/bin/activate && pip install -e .` | `python -m src.main`                          |
+| **Docker**        | `docker build -t greptile-mcp .`                                      | `docker run --rm --env-file .env -p 8050:8050 greptile-mcp` |
+| **Smithery**      | `npm install -g smithery`                                             | `smithery deploy` (see smithery.yaml)         |
 
 > Fill in `.env` using `.env.example` and set your `GREPTILE_API_KEY` and `GITHUB_TOKEN` before running.
 

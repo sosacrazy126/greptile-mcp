@@ -4,7 +4,7 @@ import urllib.parse
 import typing
 import uuid
 import asyncio
-
+import logging
 from collections.abc import AsyncGenerator
 from typing import Optional, Any, Dict, List, Union
 
@@ -58,6 +58,7 @@ class GreptileClient:
             api_key: Greptile API key
             github_token: GitHub/GitLab personal access token
             base_url: Base URL for the Greptile API
+            default_timeout: Default timeout for API calls in seconds
         """
         self.base_url = base_url
         self.headers = {
@@ -77,7 +78,7 @@ class GreptileClient:
         remote: str, 
         repository: str, 
         branch: str, 
-        reload: bool = False, 
+        reload: bool = True, 
         notify: bool = False
     ) -> Dict[str, Any]:
         """
@@ -87,8 +88,9 @@ class GreptileClient:
             remote: The repository host, either "github" or "gitlab"
             repository: The repository in owner/repo format
             branch: The branch to index
-            reload: Whether to force reprocessing
-            notify: Whether to send an email notification
+            reload: Whether to force reprocessing (default: True).
+                   When False, won't reprocess if previously indexed successfully.
+            notify: Whether to send an email notification (default: False)
 
         Returns:
             The API response as a dictionary
@@ -127,13 +129,20 @@ class GreptileClient:
             timeout: Optional request timeout in seconds
 
         Returns:
-            The API response as a dictionary
+            The API response as a dictionary if stream=False,
+            or an AsyncGenerator yielding chunks if stream=True
         """
+        if stream:
+            # Return streaming response
+            return self.stream_query_repositories(
+                messages, repositories, session_id, genius, timeout
+            )
+            
         url = f"{self.base_url}/query"
         payload = {
             "messages": messages,
             "repositories": repositories,
-            "stream": stream,
+            "stream": False,
             "genius": genius
         }
         if session_id:
@@ -264,6 +273,9 @@ def get_greptile_client() -> GreptileClient:
 
     Returns:
         GreptileClient: Configured Greptile API client
+        
+    Raises:
+        ValueError: If required environment variables are missing
     """
     api_key = os.getenv("GREPTILE_API_KEY")
     github_token = os.getenv("GITHUB_TOKEN")
