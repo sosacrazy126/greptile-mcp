@@ -11,6 +11,7 @@ from typing import List, Dict, Any, Optional, AsyncGenerator, Union
 
 from src.utils import (
     get_greptile_client,
+    GreptileClient,
     SessionManager,
     generate_session_id
 )
