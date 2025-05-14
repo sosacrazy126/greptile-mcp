@@ -1,17 +1,3 @@
-name: greptile-mcp
-version: "1.0.0"
-description: "Natural language code search and analysis across multiple repositories"
-author: sosacrazy126
-license: MIT
-homepage: "https://github.com/sosacrazy126/greptile-mcp"
-repository: "https://github.com/sosacrazy126/greptile-mcp"
-keywords:
-  - code-search
-  - greptile
-  - repository-analysis
-  - code-understanding
-  - mcp
-
 build:
   dockerfile: Dockerfile.smithery
 
@@ -26,12 +12,15 @@ startCommand:
     properties:
       GREPTILE_API_KEY:
         type: string
+        title: "GREPTILE API Key"
         description: "Your Greptile API key"
       GITHUB_TOKEN:
         type: string
+        title: "GitHub Token"
         description: "GitHub personal access token for repository access"
       GREPTILE_BASE_URL:
         type: string
+        title: "Greptile Base URL"
         description: "Custom Greptile API base URL (default: https://api.greptile.com/v2)"
         default: "https://api.greptile.com/v2"
   commandFunction: |
@@ -45,17 +34,3 @@ startCommand:
         PORT: "8080"
       }
     })
-
-tools:
-  - name: greptile_help
-    description: Get comprehensive documentation on using Greptile MCP
-  - name: index_repository
-    description: Index a repository to make it searchable
-  - name: query_repository
-    description: Query repositories with natural language
-  - name: search_repository
-    description: Search for code patterns across repositories
-  - name: compare_repositories
-    description: Compare implementations across repositories
-  - name: get_repository_info
-    description: Check repository indexing status
