@@ -38,48 +38,21 @@ async def parse_config(config_b64: Optional[str]) -> Dict[str, Any]:
         print(f"Error parsing config: {e}")
         return {}
 
-def list_tools_response():
+async def list_tools_response():
     """Helper function to construct the tools list response for /mcp and /tools endpoints."""
-    # Get tool information from the MCP server
+    # Use the FastMCP's list_tools method which is async
+    tool_list = await greptile_mcp.list_tools()
+    
+    # Convert the Tool objects to the format expected by Smithery
     tools = []
-    for tool_name, tool_func in greptile_mcp.tools.items():
-        # Extract tool metadata
-        tool_info = {
-            "name": tool_name,
-            "description": tool_func.__doc__.strip() if tool_func.__doc__ else "",
-            "inputSchema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
+    for tool in tool_list:
+        tool_data = {
+            "name": tool.name,
+            "description": tool.description,
+            "inputSchema": tool.inputSchema
         }
-        # Extract parameters from function signature
-        import inspect
-        sig = inspect.signature(tool_func)
-        for param_name, param in sig.parameters.items():
-            if param_name == 'ctx':  # Skip context parameter
-                continue
-            # Add parameter to schema
-            param_type = "string"  # Default type
-            if param.annotation != inspect.Parameter.empty:
-                if param.annotation == bool:
-                    param_type = "boolean"
-                elif param.annotation == int:
-                    param_type = "integer"
-                elif param.annotation == float:
-                    param_type = "number"
-                elif param.annotation == list:
-                    param_type = "array"
-                elif param.annotation == dict:
-                    param_type = "object"
-            tool_info["inputSchema"]["properties"][param_name] = {
-                "type": param_type,
-                "description": ""  # Would need to extract from docstring
-            }
-            # Mark required parameters
-            if param.default == inspect.Parameter.empty:
-                tool_info["inputSchema"]["required"].append(param_name)
-        tools.append(tool_info)
+        tools.append(tool_data)
+    
     return {
         "capabilities": {
             "tools": True,
@@ -95,7 +68,7 @@ async def mcp_list_tools(request: Request):
     Handle GET request for MCP endpoint - list available tools.
     This endpoint doesn't require authentication (lazy loading).
     """
-    return list_tools_response()
+    return await list_tools_response()
 
 @app.get("/tools")
 async def tools_list_get(request: Request):
@@ -103,7 +76,7 @@ async def tools_list_get(request: Request):
     Handle GET request for /tools endpoint - list available tools.
     This endpoint doesn't require authentication (lazy loading).
     """
-    return list_tools_response()
+    return await list_tools_response()
 
 @app.post("/tools")
 async def tools_list_post(request: Request):
@@ -111,7 +84,7 @@ async def tools_list_post(request: Request):
     Handle POST request for /tools endpoint - list available tools.
     Accepts an empty JSON body or config, compatible with Smithery orchestrator.
     """
-    return list_tools_response()
+    return await list_tools_response()
 
 @app.post("/mcp")
 async def mcp_execute_tool(request: Request):
@@ -129,6 +102,23 @@ async def mcp_execute_tool(request: Request):
 
     method = body.get('method')
 
+    # Handle initialize method
+    if method == 'initialize':
+        return {
+            "id": body.get('id'),
+            "result": {
+                "protocolVersion": "0.1.0",
+                "capabilities": {
+                    "tools": True,
+                    "resources": False
+                },
+                "serverInfo": {
+                    "name": "greptile-mcp",
+                    "version": "1.0.0"
+                }
+            }
+        }
+
     if method != 'tools/call':
         return JSONResponse(
             content={"error": f"Unsupported method: {method}"},
@@ -140,8 +130,9 @@ async def mcp_execute_tool(request: Request):
     tool_name = params.get('name')
     tool_args = params.get('arguments', {})
 
-    # Validate tool exists
-    if tool_name not in greptile_mcp.tools:
+    # Validate tool exists through tool_manager
+    tool_manager = greptile_mcp._tool_manager
+    if tool_name not in tool_manager._tools:
         return JSONResponse(
             content={"error": f"Tool '{tool_name}' not found"},
             status_code=404
@@ -181,7 +172,8 @@ async def mcp_execute_tool(request: Request):
 
     # Execute the tool
     try:
-        tool_func = greptile_mcp.tools[tool_name]
+        tool_info = tool_manager._tools[tool_name]
+        tool_func = tool_info.function
         result = await tool_func(ctx, **tool_args)
 
         # Format response
@@ -230,5 +222,5 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", "8080"))
+    port = int(os.getenv("PORT", "8088"))
     uvicorn.run(app, host="0.0.0.0", port=port)
