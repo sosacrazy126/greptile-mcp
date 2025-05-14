@@ -68,7 +68,23 @@ async def mcp_list_tools(request: Request):
     Handle GET request for MCP endpoint - list available tools.
     This endpoint doesn't require authentication (lazy loading).
     """
-    return await list_tools_response()
+    tools_response = await list_tools_response()
+    
+    # Check if this is a JSON-RPC style request (has id parameter)
+    query_params = dict(request.query_params)
+    if 'id' in query_params:
+        # Return JSON-RPC format
+        return {
+            "jsonrpc": "2.0",
+            "id": query_params.get('id'),
+            "result": tools_response
+        }
+    
+    # For regular GET requests, still include jsonrpc field for compatibility
+    return {
+        "jsonrpc": "2.0",
+        "result": tools_response
+    }
 
 @app.get("/tools")
 async def tools_list_get(request: Request):
@@ -102,6 +118,15 @@ async def mcp_execute_tool(request: Request):
 
     method = body.get('method')
     request_id = body.get('id')
+
+    # If no method provided, default to tools/list
+    if not method:
+        tools = await list_tools_response()
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": tools
+        }
 
     # Handle initialize method
     if method == 'initialize':
