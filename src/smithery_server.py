@@ -172,15 +172,46 @@ async def mcp_execute_tool(request: Request):
 
     # Execute the tool
     try:
+        # Use the MCP server's internal tool manager directly
+        tool_manager = greptile_mcp._tool_manager
         tool_info = tool_manager._tools[tool_name]
-        tool_func = tool_info.function
-        result = await tool_func(ctx, **tool_args)
-
-        # Format response
-        return {
-            "id": body.get('id'),
-            "result": result
-        }
+        
+        # Create a mock context that's compatible with FastMCP
+        class MockContext:
+            def __init__(self, greptile_context):
+                self.request_context = type('RequestContext', (), {
+                    'lifespan_context': greptile_context
+                })()
+        
+        ctx = MockContext(greptile_context)
+        
+        # Call the function directly with our context
+        tool_func = tool_info.fn
+        if tool_info.is_async:
+            result = await tool_func(ctx, **tool_args)
+        else:
+            result = tool_func(ctx, **tool_args)
+        
+        # Convert result to proper format if needed
+        if hasattr(result, '__iter__') and not isinstance(result, str):
+            # It's a list of content items
+            content_list = list(result)
+            return {
+                "id": body.get('id'),
+                "result": content_list
+            }
+        elif isinstance(result, str):
+            # It's a direct string result
+            return {
+                "id": body.get('id'),
+                "result": [{"type": "text", "text": result}]
+            }
+        else:
+            # Return as is
+            return {
+                "id": body.get('id'),
+                "result": result
+            }
     except Exception as e:
         return JSONResponse(
             content={
