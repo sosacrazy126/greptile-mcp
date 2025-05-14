@@ -153,14 +153,19 @@ async def query_repository(
     messages: Optional[List[Dict[str, str]]] = None
 ) -> Union[str, AsyncGenerator[str, None]]:
     """
-    Query repositories to get an answer with code references.
+    Query one or more repositories to get an answer with code references.
 
-    Supports both single-turn and multi-turn (conversational) context with full message history.
+    Supports both single and multiple repository queries, as well as
+    single-turn and multi-turn (conversational) context with full message history.
 
     Args:
         ctx: MCP server provided context
-        query: The natural language query about the codebase
-        repositories: List of repositories to query
+        query: The natural language query about the codebase(s)
+        repositories: List of repositories to query (supports multiple repos)
+                     Each repository should include:
+                     - remote: "github" or "gitlab"
+                     - repository: "owner/repo" format
+                     - branch: branch name (e.g., "main")
         session_id: Used for multi-turn conversations; generates new if not provided
         stream: Enable streaming for long queries (returns async generator)
         genius: Use enhanced answer quality (may take longer)
@@ -279,15 +284,17 @@ async def search_repository(
     genius: bool = True,
     messages: Optional[List[Dict[str, str]]] = None
 ) -> str:
-    """Search repositories for relevant files without generating a full answer.
+    """Search one or more repositories for relevant files without generating a full answer.
     
     This tool returns a list of relevant files based on a query without generating
-    a complete answer. The repositories must have been indexed first.
+    a complete answer. The repositories must have been indexed first. Supports
+    searching across multiple repositories simultaneously.
     
     Args:
         ctx: The MCP server provided context which includes the Greptile client
-        query: The natural language query about the codebase
-        repositories: List of repositories to search, each with format {"remote": "github", "repository": "owner/repo", "branch": "main"}
+        query: The natural language query about the codebase(s)
+        repositories: List of repositories to search (supports multiple repos)
+                     Each should include: remote, repository, and branch
         session_id: Optional session ID for continuing a conversation
         genius: Whether to use the enhanced search capabilities (default: True)
         messages: Optional message history in the format [{"id": "msg1", "content": "...", "role": "user/assistant"}]
@@ -498,6 +505,163 @@ async def query_simple(
         stream=False,
         genius=genius,
         timeout=None
+    )
+
+@mcp.tool()
+async def query_multiple_repositories(
+    ctx: Context,
+    query: str,
+    repositories: list,
+    genius: bool = True,
+    stream: bool = False,
+    timeout: Optional[float] = None
+) -> Union[str, AsyncGenerator[str, None]]:
+    """
+    Query multiple repositories simultaneously with a single question.
+    
+    This tool allows you to search across multiple repositories at once, getting 
+    a unified answer that considers code from all specified repositories.
+    
+    Args:
+        ctx: MCP server provided context
+        query: The natural language query about the codebases
+        repositories: List of repositories to query, each should include:
+                    - remote: "github" or "gitlab"
+                    - repository: "owner/repo" format
+                    - branch: branch name (e.g., "main")
+                    Example: [
+                        {"remote": "github", "repository": "facebook/react", "branch": "main"},
+                        {"remote": "github", "repository": "vercel/next.js", "branch": "canary"}
+                    ]
+        genius: Use enhanced answer quality (default: True)
+        stream: Enable streaming for long queries (default: False)
+        timeout: Optional per-query timeout (seconds)
+    
+    Returns:
+        - For streaming: async generator yielding JSON strings
+        - For non-streaming: formatted JSON string with combined results
+        
+    Example:
+        repos = [
+            {"remote": "github", "repository": "facebook/react", "branch": "main"},
+            {"remote": "github", "repository": "vuejs/core", "branch": "main"}
+        ]
+        result = await query_multiple_repositories(ctx, "How do these frameworks handle state management?", repos)
+    """
+    try:
+        # Validate repositories format
+        for repo in repositories:
+            if not all(key in repo for key in ["remote", "repository", "branch"]):
+                return json.dumps({
+                    "error": "Each repository must include 'remote', 'repository', and 'branch' fields"
+                }, indent=2)
+        
+        # Use query_simple for straightforward implementation
+        if not stream:
+            return await query_simple(ctx, query, repositories, genius)
+        
+        # For streaming, use the advanced method
+        messages = [{
+            "id": "multi_query_0",
+            "content": query,
+            "role": "user"
+        }]
+        
+        return await query_repository_advanced(
+            ctx=ctx,
+            messages=messages,
+            repositories=repositories,
+            session_id=None,
+            stream=stream,
+            genius=genius,
+            timeout=timeout
+        )
+    except Exception as e:
+        return f"Error querying multiple repositories: {str(e)}"
+
+@mcp.tool()
+async def compare_repositories(
+    ctx: Context,
+    comparison_query: str,
+    repositories: list,
+    genius: bool = True
+) -> str:
+    """
+    Compare implementation details across multiple repositories.
+    
+    This specialized tool is optimized for comparing how different repositories
+    handle similar concepts, patterns, or features.
+    
+    Args:
+        ctx: MCP server provided context
+        comparison_query: Query focused on comparing aspects across repos
+                         e.g., "Compare error handling approaches"
+        repositories: List of repositories to compare
+        genius: Use enhanced analysis (default: True)
+    
+    Returns:
+        JSON string with comparative analysis
+        
+    Example:
+        repos = [
+            {"remote": "github", "repository": "expressjs/express", "branch": "master"},
+            {"remote": "github", "repository": "koajs/koa", "branch": "master"}
+        ]
+        result = await compare_repositories(ctx, "Compare middleware implementation", repos)
+    """
+    # Enhance the query for better comparison
+    enhanced_query = f"Compare and contrast the following across the provided repositories: {comparison_query}. Provide specific examples from each codebase."
+    
+    return await query_multiple_repositories(
+        ctx=ctx,
+        query=enhanced_query,
+        repositories=repositories,
+        genius=genius,
+        stream=False
+    )
+
+@mcp.tool()
+async def search_multiple_repositories(
+    ctx: Context,
+    search_term: str,
+    repositories: list,
+    file_pattern: Optional[str] = None,
+    genius: bool = True
+) -> str:
+    """
+    Search for specific terms or patterns across multiple repositories.
+    
+    This tool is optimized for finding specific code patterns, function names,
+    or implementations across multiple codebases without generating a full answer.
+    
+    Args:
+        ctx: MCP server provided context
+        search_term: The term or pattern to search for
+        repositories: List of repositories to search
+        file_pattern: Optional file pattern to filter results (e.g., "*.ts", "*.py")
+        genius: Use enhanced search capabilities (default: True)
+    
+    Returns:
+        JSON string with search results from all repositories
+        
+    Example:
+        repos = [
+            {"remote": "github", "repository": "django/django", "branch": "main"},
+            {"remote": "github", "repository": "pallets/flask", "branch": "main"}
+        ]
+        result = await search_multiple_repositories(ctx, "authentication middleware", repos, "*.py")
+    """
+    # Enhance search query with file pattern if provided
+    search_query = search_term
+    if file_pattern:
+        search_query = f"{search_term} in files matching {file_pattern}"
+    
+    # Use the existing search_repository function which already supports multiple repos
+    return await search_repository(
+        ctx=ctx,
+        query=search_query,
+        repositories=repositories,
+        genius=genius
     )
 
 async def main():
