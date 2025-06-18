@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/sosacrazy126-greptile-mcp-badge.png)](https://mseep.ai/app/sosacrazy126-greptile-mcp)
+
 # Greptile MCP Server [COMPLETED]
 
 **Quick Run Command Cheatsheet**
