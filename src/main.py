@@ -30,6 +30,7 @@ class GreptileContext:
     greptile_client: GreptileClient  # The Greptile API client
     initialized: bool = False  # Track if initialization is complete
     session_manager: Optional[SessionManager] = None  # Add session manager for conversation context
+    default_session_id: str = "7dc8f451-9bf7-4262-a664-0865ac578e6c"  # Default session ID from our React queries
 
 @asynccontextmanager
 async def greptile_lifespan(server: FastMCP) -> AsyncIterator[GreptileContext]:
@@ -71,7 +72,7 @@ Perfect for understanding codebases, comparing implementations, and finding patt
 
 QUICK START:
 1. Use 'greptile_help' tool for complete guide
-2. Index repos first: index_repository("github", "owner/repo", "branch")  
+2. Index repos first: index_repository("github", "owner/repo", "branch")
 3. Query them: query_simple(ctx, "your question", [repos])
 
 Key Features:
@@ -90,13 +91,13 @@ Common Use Cases:
     lifespan=greptile_lifespan,
     host=os.getenv("HOST", "0.0.0.0"),
     port=os.getenv("PORT", "8050")
-)        
+)
 
 @mcp.tool()
 async def greptile_help(ctx: Context) -> str:
     """
     Get started with Greptile MCP - Your guide to searching and analyzing code repositories.
-    
+
     This tool provides comprehensive documentation on how to use all Greptile MCP features.
     """
     help_text = """
@@ -143,7 +144,7 @@ await index_repository(ctx, "github", "mycompany/myapp", "main")
 ### Step 2: Understand Current Authentication
 ```python
 repos = [{"remote": "github", "repository": "mycompany/myapp", "branch": "main"}]
-result = await query_repository(ctx, 
+result = await query_repository(ctx,
     "How does authentication work in this codebase? Show me the auth flow",
     repos
 )
@@ -264,6 +265,47 @@ result = await query_repository(ctx, "Your question here", repos)
 4. **Use Examples**: "Show me how X works with code examples"
 5. **Iterative Queries**: Build on previous answers
 
+## 📝 Session ID Management: IMPORTANT FOR FOLLOW-UP QUESTIONS
+
+**Are you asking a follow-up question?** If yes, you NEED to use a session ID!
+
+Examples of follow-up questions:
+- "Tell me more about X" after asking about X
+- "How does this specific part work?" after a general question
+- "Can you explain that in more detail?" after any response
+- "What about [related topic]?" after discussing a topic
+
+Follow this simple workflow:
+
+1. **First Query**: Make your initial query WITHOUT specifying a session_id
+   ```python
+   # Initial question
+   result1 = await query_repository(ctx,
+       "How does authentication work?",
+       repositories
+   )
+   # Every response automatically includes a session ID
+   ```
+
+2. **Extract Session ID**: Get the session ID from the response
+   ```python
+   import json
+   response_data = json.loads(result1)
+   session_id = response_data["_session_id"]  # This is required for follow-ups!
+   ```
+
+3. **ANY Follow-up Question**: ALWAYS use the session ID for ANY follow-up
+   ```python
+   # This is a follow-up, so we MUST use the session_id
+   result2 = await query_repository(ctx,
+       "What about password reset functionality?",  # This is a follow-up question
+       repositories,
+       session_id=session_id  # Without this, the system won't remember your first question
+   )
+   ```
+
+Without the session ID, the system treats each question as completely new and forgets your previous questions and their context.
+
 ## ⚠️ Common Mistakes
 
 ❌ Wrong repository format: "https://github.com/owner/repo"
@@ -275,7 +317,41 @@ result = await query_repository(ctx, "Your question here", repos)
 ❌ Vague questions: "How does this work?"
 ✅ Specific questions: "How does the auth middleware validate JWT tokens?"
 
+❌ Generating your own session ID for the first query
+✅ Let the system generate a session ID and extract it from the response
+
+❌ Asking a follow-up question WITHOUT using the session_id from the previous response
+✅ ALWAYS use the session_id for ANY follow-up question
+
 ## 🚀 Quick Examples
+
+### Multi-Turn Conversation Example (Follow-up Questions)
+```python
+# Step 1: Initial question
+result1 = await query_repository(ctx,
+    "How do React Server Components work?",
+    repos
+)
+
+# Step 2: Extract the session ID
+import json
+response_data = json.loads(result1)
+session_id = response_data["_session_id"]
+
+# Step 3: Follow-up question USING the session ID
+result2 = await query_repository(ctx,
+    "How does caching work with Server Components?",  # This is a follow-up!
+    repos,
+    session_id=session_id  # REQUIRED for follow-ups!
+)
+
+# Another follow-up question
+result3 = await query_repository(ctx,
+    "Can you show me an example of streaming with Server Components?",  # Another follow-up!
+    repos,
+    session_id=session_id  # Still using the SAME session ID!
+)
+```
 
 ### Add Feature
 ```python
@@ -308,16 +384,16 @@ Happy coding! Use Greptile to understand any codebase and build features faster.
 def format_messages_for_api(messages: List[Union[Dict, str]], current_query: str = None) -> List[Dict[str, str]]:
     """
     Format messages to match the Greptile API specification.
-    
+
     Args:
         messages: List of messages in various formats
         current_query: Optional current query to append
-    
+
     Returns:
         List of properly formatted messages with id, content, and role
     """
     formatted_messages = []
-    
+
     for idx, msg in enumerate(messages):
         if isinstance(msg, dict):
             # Ensure proper format
@@ -334,7 +410,7 @@ def format_messages_for_api(messages: List[Union[Dict, str]], current_query: str
                 "content": str(msg),
                 "role": "user"
             })
-    
+
     # Add current query if provided
     if current_query:
         formatted_messages.append({
@@ -342,45 +418,45 @@ def format_messages_for_api(messages: List[Union[Dict, str]], current_query: str
             "content": current_query,
             "role": "user"
         })
-    
+
     return formatted_messages
 
 @mcp.tool()
 async def index_repository(ctx: Context, remote: str, repository: str, branch: str, reload: bool = True, notify: bool = False) -> str:
     """
     [REQUIRED FIRST STEP] Index a repository to make it searchable.
-    
+
     Quick Example:
     await index_repository(ctx, "github", "facebook/react", "main")
-    
+
     Format: repository MUST be "owner/repo" (e.g., "facebook/react", NOT just "react")
-    
+
     Args:
         remote: "github" or "gitlab"
         repository: "owner/repo" format (REQUIRED FORMAT)
         branch: branch name (e.g., "main", "master", "develop")
         reload: Force re-index even if already indexed (default: True)
         notify: Email notification when done (default: False)
-    
+
     Common repos:
     - "facebook/react" (React framework)
     - "vuejs/core" (Vue.js framework)
     - "angular/angular" (Angular framework)
     - "nodejs/node" (Node.js runtime)
-    
+
     Returns: JSON with indexing status
     Note: Must index before querying!
     """
     try:
         greptile_context = ctx.request_context.lifespan_context
-        
+
         # Check if initialization is complete
         if not getattr(greptile_context, 'initialized', False):
             return json.dumps({
                 "error": "Server initialization is not complete. Please try again in a moment.",
                 "status": "initializing"
             }, indent=2)
-            
+
         greptile_client = greptile_context.greptile_client
         result = await greptile_client.index_repository(remote, repository, branch, reload, notify)
         return json.dumps(result, indent=2)
@@ -407,37 +483,43 @@ async def query_repository(
         {"remote": "github", "repository": "vuejs/core", "branch": "main"}
     ]
     result = await query_repository(ctx, "How do these handle state?", repositories)
-    
+
     REQUIRED FORMAT:
     Each repository must have: remote, repository, branch
     - remote: "github" or "gitlab"
     - repository: "owner/repo" format (e.g., "facebook/react")
     - branch: branch name (e.g., "main", "master", "develop")
-    
+
     FEATURES:
     ✓ Query multiple repositories simultaneously
     ✓ Get answers with specific code references
     ✓ Maintain conversation history with session_id
     ✓ Stream responses for long queries
-    
+
+    SESSION ID USAGE - REQUIRED FOR ANY FOLLOW-UP QUESTIONS:
+    1. First query: Don't specify a session_id (system will generate one)
+    2. Extract the session ID from the response: response_data["_session_id"]
+    3. ALWAYS use this session ID for ANY follow-up question
+       Without it, the system will forget your previous questions!
+
     COMMON PATTERNS:
     1. Single repo: [{"remote": "github", "repository": "owner/repo", "branch": "main"}]
     2. Compare frameworks: Add multiple repos to compare implementations
     3. Microservices: Query across related service repositories
-    
+
     Args:
         ctx: MCP context (provided automatically)
         query: Your question about the code
         repositories: List of repos to search (see format above)
-        session_id: For multi-turn conversations (optional)
+        session_id: For follow-up queries, use the _session_id from previous response
         stream: Enable streaming responses (default: False)
         genius: Enhanced accuracy mode (default: True)
         timeout: Max seconds to wait (optional)
         messages: Previous conversation history (optional)
-    
+
     Returns:
-        JSON with answer and source code references
-    
+        JSON with answer, source code references, and _session_id for follow-up queries
+
     Note: Repositories must be indexed first using index_repository()
     """
     try:
@@ -451,9 +533,9 @@ async def query_repository(
         greptile_client = greptile_context.greptile_client
         session_manager: SessionManager = greptile_context.session_manager
 
-        # Session logic
-        sid = session_id or generate_session_id()
-        
+        # Session logic - use default session ID if none provided
+        sid = session_id or greptile_context.default_session_id
+
         # Build message history
         if messages is not None:
             # If messages are provided, ensure they have the correct format
@@ -474,7 +556,7 @@ async def query_repository(
                         "content": str(msg),
                         "role": "user"
                     })
-            
+
             # Add the current query as the latest message
             query_msg = {
                 "id": f"msg_{len(formatted_messages)}",
@@ -540,40 +622,49 @@ async def query_repository(
 
 @mcp.tool()
 async def search_repository(
-    ctx: Context, 
-    query: str, 
-    repositories: list, 
-    session_id: str = None, 
+    ctx: Context,
+    query: str,
+    repositories: list,
+    session_id: str = None,
     genius: bool = True,
     messages: Optional[List[Dict[str, str]]] = None
 ) -> str:
     """Search one or more repositories for relevant files without generating a full answer.
-    
+
     This tool returns a list of relevant files based on a query without generating
     a complete answer. The repositories must have been indexed first. Supports
     searching across multiple repositories simultaneously.
-    
+
+    SESSION ID USAGE - REQUIRED FOR ANY FOLLOW-UP QUESTIONS:
+    1. First query: Don't specify a session_id (system will generate one)
+    2. Extract the session ID from the response: response_data["_session_id"]
+    3. ALWAYS use this session ID for ANY follow-up question
+       Without it, the system will forget your previous questions!
+
     Args:
         ctx: The MCP server provided context which includes the Greptile client
         query: The natural language query about the codebase(s)
         repositories: List of repositories to search (supports multiple repos)
                      Each should include: remote, repository, and branch
-        session_id: Optional session ID for continuing a conversation
+        session_id: For follow-up queries, use the session ID from previous response
         genius: Whether to use the enhanced search capabilities (default: True)
         messages: Optional message history in the format [{"id": "msg1", "content": "...", "role": "user/assistant"}]
+
+    Returns:
+        JSON with relevant files and their scores, may include session ID for follow-ups
     """
     try:
         greptile_context = ctx.request_context.lifespan_context
-        
+
         # Check if initialization is complete
         if not getattr(greptile_context, 'initialized', False):
             return json.dumps({
                 "error": "Server initialization is not complete. Please try again in a moment.",
                 "status": "initializing"
             }, indent=2)
-            
+
         greptile_client = greptile_context.greptile_client
-        
+
         # Format messages properly
         if messages is not None:
             # Use provided message history
@@ -599,8 +690,15 @@ async def search_repository(
                 "content": query,
                 "role": "user"
             }]
-        
-        result = await greptile_client.search_repositories(formatted_messages, repositories, session_id, genius)
+
+        # Use default session ID if none provided
+        greptile_context = ctx.request_context.lifespan_context
+        effective_session_id = session_id or greptile_context.default_session_id
+
+        result = await greptile_client.search_repositories(formatted_messages, repositories, effective_session_id, genius)
+
+        # Attach the session_id for client reference
+        result["_session_id"] = effective_session_id
         return json.dumps(result, indent=2)
     except Exception as e:
         return f"Error searching repositories: {str(e)}"
@@ -608,24 +706,24 @@ async def search_repository(
 @mcp.tool()
 async def get_repository_info(ctx: Context, remote: str, repository: str, branch: str) -> str:
     """Get information about an indexed repository.
-    
+
     This tool retrieves information about a specific repository that has been indexed,
     including its status and other metadata.
-    
+
     The tool handles proper URL encoding internally to ensure repository identifiers
     with special characters (like '/') are correctly processed.
-    
+
     Args:
         ctx: The MCP server provided context which includes the Greptile client
         remote: The repository host, either "github" or "gitlab"
         repository: The repository in owner/repo format (e.g., "coleam00/mcp-mem0")
         branch: The branch that was indexed (e.g., "main")
-        
+
     Returns:
         A JSON string containing repository information such as status, last indexed time,
-        and other metadata. If the repository is still being indexed, the status will 
+        and other metadata. If the repository is still being indexed, the status will
         indicate the current progress.
-        
+
     Example Response:
         {
           "id": "github:main:owner/repo",
@@ -640,14 +738,14 @@ async def get_repository_info(ctx: Context, remote: str, repository: str, branch
     """
     try:
         greptile_context = ctx.request_context.lifespan_context
-        
+
         # Check if initialization is complete
         if not getattr(greptile_context, 'initialized', False):
             return json.dumps({
                 "error": "Server initialization is not complete. Please try again in a moment.",
                 "status": "initializing"
             }, indent=2)
-            
+
         greptile_client = greptile_context.greptile_client
         repository_id = f"{remote}:{branch}:{repository}"
         result = await greptile_client.get_repository_info(repository_id)
@@ -667,21 +765,27 @@ async def query_repository_advanced(
 ) -> Union[str, AsyncGenerator[str, None]]:
     """
     Advanced query with full message history support following Greptile API format.
-    
+
     This is the most flexible query method that directly maps to the Greptile API.
-    
+
+    SESSION ID USAGE - REQUIRED FOR ANY FOLLOW-UP QUESTIONS:
+    1. First query: Don't specify a session_id (system will generate one)
+    2. Extract the session ID from the response: response_data["_session_id"]
+    3. ALWAYS use this session ID for ANY follow-up question
+       Without it, the system will forget your previous questions!
+
     Args:
         ctx: MCP server provided context
         messages: Full message history in Greptile API format: [{"id": "msg1", "content": "...", "role": "user/assistant"}]
         repositories: List of repositories to query
-        session_id: Used for multi-turn conversations; generates new if not provided
+        session_id: For follow-up queries, use the _session_id from previous response
         stream: Enable streaming for long queries (returns async generator)
         genius: Use enhanced answer quality (may take longer)
         timeout: Optional per-query timeout (seconds)
-    
+
     Returns:
         - For streaming: async generator yielding JSON strings.
-        - For non-streaming: formatted JSON string (single result).
+        - For non-streaming: formatted JSON string with answer, references, and _session_id.
     """
     try:
         greptile_context = ctx.request_context.lifespan_context
@@ -694,9 +798,9 @@ async def query_repository_advanced(
         greptile_client = greptile_context.greptile_client
         session_manager: SessionManager = greptile_context.session_manager
 
-        # Session logic
-        sid = session_id or generate_session_id()
-        
+        # Session logic - use default session ID if none provided
+        sid = session_id or greptile_context.default_session_id
+
         # Store the message history
         await session_manager.set_history(sid, messages)
 
@@ -741,21 +845,21 @@ async def query_simple(
 ) -> str:
     """
     [EASIEST WAY TO START] Ask a simple question about code repositories.
-    
+
     Quick Example:
     repos = [{"remote": "github", "repository": "facebook/react", "branch": "main"}]
     result = await query_simple(ctx, "What is useState?", repos)
-    
+
     Perfect for:
     - One-off questions
-    - Quick code lookups  
+    - Quick code lookups
     - Simple explanations
-    
+
     Args:
         query: Your question about the code
         repositories: List of repos (see format in example)
         genius: Use smart mode for better answers (default: True)
-    
+
     No session management needed - just ask and get answers!
     """
     # Create a single message
@@ -764,7 +868,7 @@ async def query_simple(
         "content": query,
         "role": "user"
     }]
-    
+
     return await query_repository_advanced(
         ctx=ctx,
         messages=messages,
@@ -786,10 +890,10 @@ async def query_multiple_repositories(
 ) -> Union[str, AsyncGenerator[str, None]]:
     """
     Query multiple repositories simultaneously with a single question.
-    
-    This tool allows you to search across multiple repositories at once, getting 
+
+    This tool allows you to search across multiple repositories at once, getting
     a unified answer that considers code from all specified repositories.
-    
+
     Args:
         ctx: MCP server provided context
         query: The natural language query about the codebases
@@ -804,11 +908,11 @@ async def query_multiple_repositories(
         genius: Use enhanced answer quality (default: True)
         stream: Enable streaming for long queries (default: False)
         timeout: Optional per-query timeout (seconds)
-    
+
     Returns:
         - For streaming: async generator yielding JSON strings
         - For non-streaming: formatted JSON string with combined results
-        
+
     Example:
         repos = [
             {"remote": "github", "repository": "facebook/react", "branch": "main"},
@@ -823,18 +927,18 @@ async def query_multiple_repositories(
                 return json.dumps({
                     "error": "Each repository must include 'remote', 'repository', and 'branch' fields"
                 }, indent=2)
-        
+
         # Use query_simple for straightforward implementation
         if not stream:
             return await query_simple(ctx, query, repositories, genius)
-        
+
         # For streaming, use the advanced method
         messages = [{
             "id": "multi_query_0",
             "content": query,
             "role": "user"
         }]
-        
+
         return await query_repository_advanced(
             ctx=ctx,
             messages=messages,
@@ -856,20 +960,20 @@ async def compare_repositories(
 ) -> str:
     """
     Compare implementation details across multiple repositories.
-    
+
     This specialized tool is optimized for comparing how different repositories
     handle similar concepts, patterns, or features.
-    
+
     Args:
         ctx: MCP server provided context
         comparison_query: Query focused on comparing aspects across repos
                          e.g., "Compare error handling approaches"
         repositories: List of repositories to compare
         genius: Use enhanced analysis (default: True)
-    
+
     Returns:
         JSON string with comparative analysis
-        
+
     Example:
         repos = [
             {"remote": "github", "repository": "expressjs/express", "branch": "master"},
@@ -879,7 +983,7 @@ async def compare_repositories(
     """
     # Enhance the query for better comparison
     enhanced_query = f"Compare and contrast the following across the provided repositories: {comparison_query}. Provide specific examples from each codebase."
-    
+
     return await query_multiple_repositories(
         ctx=ctx,
         query=enhanced_query,
@@ -898,20 +1002,20 @@ async def search_multiple_repositories(
 ) -> str:
     """
     Search for specific terms or patterns across multiple repositories.
-    
+
     This tool is optimized for finding specific code patterns, function names,
     or implementations across multiple codebases without generating a full answer.
-    
+
     Args:
         ctx: MCP server provided context
         search_term: The term or pattern to search for
         repositories: List of repositories to search
         file_pattern: Optional file pattern to filter results (e.g., "*.ts", "*.py")
         genius: Use enhanced search capabilities (default: True)
-    
+
     Returns:
         JSON string with search results from all repositories
-        
+
     Example:
         repos = [
             {"remote": "github", "repository": "django/django", "branch": "main"},
@@ -923,7 +1027,7 @@ async def search_multiple_repositories(
     search_query = search_term
     if file_pattern:
         search_query = f"{search_term} in files matching {file_pattern}"
-    
+
     # Use the existing search_repository function which already supports multiple repos
     return await search_repository(
         ctx=ctx,
