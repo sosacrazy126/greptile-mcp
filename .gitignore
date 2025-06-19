@@ -128,13 +128,18 @@ coverage.xml
 profile_default/
 ipython_config.py
 
-# Additional development files not needed in codebase
+# Development tools and AI assistant files
 .cursor/
 .roo/
-memory-bank/
-tasks/
-.cursorignore
-.cursorrules
 .roomodes
+.cursorignore 
+.cursorrules
 .taskmasterconfig
 .windsurfrules
+.continue/
+.claude/
+
+# Development artifacts (already removed)
+memory-bank/
+tasks/
+phases_output/
