@@ -1,155 +1,52 @@
-# Greptile MCP Full Documentation
+# Greptile MCP Documentation
 
-This document contains all detailed setup, installation, integration, usage, troubleshooting, and advanced configuration instructions for the Greptile MCP Server.
+Welcome to the comprehensive documentation for the Greptile MCP Server.
 
----
+## Documentation Structure
 
-## Table of Contents
+### 📚 [User Guide](USER_GUIDE.md)
+Complete guide for using the Greptile MCP server, including:
+- Basic usage patterns
+- Session management
+- Best practices
+- Common use cases
 
-- [Features](#features)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Running the Server](#running-the-server)
-- [Integration with MCP Clients](#integration-with-mcp-clients)
-- [Agent Usage & Best Practices](#agent-usage--best-practices)
-- [API Reference](#api-reference)
-- [Integration Examples](#integration-examples)
-- [Troubleshooting](#troubleshooting)
-- [Advanced Configuration](#advanced-configuration)
-- [Contributing](#contributing)
-- [License](#license)
-- [Smithery Deployment](#smithery-deployment)
+### 🔧 [Setup Guides](setup/)
+Installation and configuration documentation:
+- **[VS Code Setup](setup/VSCODE_SETUP.md)** - Integration with VS Code
+- **[Local Usage](setup/LOCAL_USAGE.md)** - Local development setup
 
----
+### 🔌 [API Reference](api/)
+Technical API documentation:
+- **[Greptile API Docs](api/greptile_api_documentation.md)** - Complete API reference
+- **[HTTP Implementation](api/HTTP_IMPLEMENTATION.md)** - HTTP transport details
 
-**For AGENT-SPECIFIC instruction, see [../AGENT_USAGE.md](../AGENT_USAGE.md).**
+## Quick Navigation
 
----
+### Getting Started
+1. [Installation](../README.md#installation) - Set up the server
+2. [Configuration](../README.md#configuration) - Configure your MCP client
+3. [Basic Usage](../README.md#usage-examples) - Start querying code
 
-# Features
+### Advanced Topics
+- [Session Management](USER_GUIDE.md#session-management) - Multi-turn conversations
+- [Multi-Repository Queries](USER_GUIDE.md#multi-repository-analysis) - Cross-repo analysis
+- [Smithery Deployment](../README.md#smithery-deployment) - Cloud deployment
 
-The server provides four essential Greptile tools that enable AI agents to interact with codebases:
+### Examples & Integrations
+- [Code Examples](../examples/) - Working code samples
+- [Debug Scripts](../scripts/debug/) - Debugging utilities
+- [Test Suite](../tests/) - Testing examples
 
-1. **index_repository**: Index a repository for code search and querying.
-2. **query_repository**: Query repositories and get answers with code references.
-3. **search_repository**: Search for relevant files without generating full answers.
-4. **get_repository_info**: Get indexed repository metadata and status.
+## Need Help?
 
-# Project Structure
+- Check the [User Guide](USER_GUIDE.md) for common patterns
+- Review [examples](../examples/) for working code
+- Check [issues](https://github.com/sosacrazy126/greptile-mcp/issues) on GitHub
 
-```
-greptile-mcp/
-├── src/
-│   ├── main.py             # Core MCP server with Greptile tool definitions
-│   ├── utils.py            # Greptile client configuration and helpers
-│   └── tests/              # Unit and integration tests
-├── .env.example            # Template for environment variables
-├── pyproject.toml          # Dependencies and project metadata
-├── Dockerfile              # Container setup
-└── README.md               # Minimal usage cheatsheet, this file for full docs
-```
+## Contributing to Documentation
 
-# Prerequisites
-
-- **Python 3.12+**
-- **Greptile API Key** (from https://app.greptile.com/settings/api)
-- **GitHub/GitLab Personal Access Token** with read permissions
-- **Docker** (optional, for deployment)
-- **Smithery** (optional, for cloud deployment)
-
-# Installation
-
-## 1. Local/Python
-
-```bash
-git clone https://github.com/sosacrazy126/greptile-mcp.git
-cd greptile-mcp
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-cp .env.example .env
-# edit .env and fill out GREPTILE_API_KEY and GITHUB_TOKEN
-```
-
-## 2. Docker
-
-```bash
-git clone https://github.com/sosacrazy126/greptile-mcp.git
-cd greptile-mcp
-cp .env.example .env
-# Edit .env file to add credentials
-docker build -t greptile-mcp .
-docker run --rm --env-file .env -p 8050:8050 greptile-mcp
-```
-
-## 3. Smithery Cloud
-
-```bash
-npm install -g smithery
-smithery deploy
-# Provide greptileApiKey and githubToken as prompted
-```
-
-# Running the Server
-
-For all options, ensure `.env` exists and you have added your GREPTILE_API_KEY and GITHUB_TOKEN.
-
-### SSE Transport (default):
-
-- `python -m src.main`
-- or with Docker: `docker run --rm --env-file .env -p 8050:8050 greptile-mcp`
-- or via Smithery: `smithery deploy`
-
-### Stdio Transport:
-
-- Set `TRANSPORT=stdio` in your `.env`.
-- For dev/local, run: `TRANSPORT=stdio python -m src.main`
-- In Docker: `docker run --rm -i --env-file .env -e TRANSPORT=stdio greptile-mcp`
-
-# Integration with MCP Clients
-
-Add server URL to your client's config as documented previously, e.g.:
-
-```json
-{
-  "mcpServers": {
-    "greptile": {
-      "transport": "sse",
-      "url": "http://localhost:8050/sse"
-    }
-  }
-}
-```
-
-For stdio, see example command/args in this repo and original README.
-
-# Agent Usage & Best Practices
-
-- Use unique session IDs for conversations
-- Always re-use the session_id for follow-up queries
-- See [../AGENT_USAGE.md](../AGENT_USAGE.md) for full agent guidance and API examples
-
-# API Reference
-
-**Full tool schemas, request/response examples, and detailed API documentation have been moved to [API_REFERENCE.md](API_REFERENCE.md)** (TODO: create if needed, or keep in this file if preferred).
-
-# Integration Examples
-
-- [Python integration, LLM chatbot, and CLI samples moved from README—see previous documentation or request examples in issues/discussions.]
-
-# Troubleshooting / Advanced Usage
-
-Common issues, troubleshooting, logging, and advanced environment variables/options previously in README are here.
-
-# Contributing
-
-See CONTRIBUTING section of the previous README.
-
-# License
-
-MIT License—see project root for license file.
-
----
-
-For any details beyond this, see the commit history or raise an issue!
+Documentation improvements are welcome! Please:
+1. Keep examples working and tested
+2. Update the relevant sections when adding features
+3. Follow the existing style and structure
