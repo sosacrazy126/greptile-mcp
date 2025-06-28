@@ -42,6 +42,8 @@ async def run_http():
     await uvicorn.run(handler, host="0.0.0.0", port=8080)
 ```
 
+> **Default port for Smithery is now `8080` (or dynamic via `$PORT`) everywhere. Update your configs and scripts accordingly.**
+
 ### 2. Update Configuration
 
 ```python
@@ -124,7 +126,7 @@ For Smithery deployment:
 ```env
 TRANSPORT=http
 HOST=0.0.0.0
-PORT=8080
+PORT=8080   # or dynamic via $PORT (Smithery will inject)
 ```
 
 ## Serverless Considerations
@@ -137,7 +139,7 @@ Since Smithery uses serverless hosting:
 
 ## Client Configuration
 
-Users connect via:
+Users connect via (ensure port matches Smithery-assigned or 8080):
 
 ```json
 {

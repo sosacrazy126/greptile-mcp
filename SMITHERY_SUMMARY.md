@@ -9,7 +9,7 @@
    - Implemented proper lazy loading - no authentication required for tool listing
 
 2. **Port Configuration**
-   - Updated all configurations to use port 8088 (as you specified)
+   - Updated all configurations to use port 8080 (or dynamic `$PORT`)
    - Fixed the default port in `smithery_server.py`
    - Updated `smithery.json` and `smithery.yaml` to match
 
@@ -34,7 +34,7 @@
 
 When running `python -m src.smithery_server`:
 
-1. Starts FastAPI server on port 8088 (or PORT env variable)
+1. Starts FastAPI server on port 8080 (or PORT env variable)
 2. Provides these endpoints:
    - `GET /` - Service info
    - `GET /health` - Health check
