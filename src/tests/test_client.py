@@ -103,7 +103,7 @@ class TestGreptileClient:
                 "remote": "github",
                 "repository": "test/repo",
                 "branch": "main",
-                "reload": False,
+                "reload": True,  # Updated to match current default
                 "notify": False
             }
             

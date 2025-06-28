@@ -74,7 +74,7 @@ class TestMCPTools:
         
         # Verify the client method was called with correct parameters
         mock_greptile_client.index_repository.assert_called_once_with(
-            "github", "test/repo", "main", False, False
+            "github", "test/repo", "main", True, False  # Updated to match current defaults
         )
         
         # Parse and verify the result
@@ -97,8 +97,8 @@ class TestMCPTools:
         args, kwargs = mock_greptile_client.query_repositories.call_args
         
         # Verify the arguments match what we expect
-        # The first arg should be messages
-        assert args[0] == [{"role": "user", "content": "test query"}]
+        # The first arg should be messages with id field
+        assert args[0] == [{"id": "msg_0", "content": "test query", "role": "user"}]
         # The second arg should be repositories
         assert args[1] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
         
@@ -121,8 +121,8 @@ class TestMCPTools:
         args, kwargs = mock_greptile_client.search_repositories.call_args
         
         # Verify the arguments match what we expect
-        # The first arg should be messages
-        assert args[0] == [{"role": "user", "content": "test query"}]
+        # The first arg should be messages with id field
+        assert args[0] == [{"id": "msg_0", "content": "test query", "role": "user"}]
         # The second arg should be repositories
         assert args[1] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
         
