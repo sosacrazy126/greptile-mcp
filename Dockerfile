@@ -15,7 +15,7 @@ COPY src/ ./src/
 ENV PYTHONUNBUFFERED=1 \
     GREPTILE_BASE_URL=https://api.greptile.com/v2 \
     HOST=0.0.0.0 \
-    PORT=8050
+    PORT=8080
 
 # Default to SSE transport, can be overridden by Smithery
 ENV TRANSPORT=sse

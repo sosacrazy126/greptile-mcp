@@ -7,15 +7,11 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy project files
-COPY pyproject.toml .
-COPY src/ ./src/
+# Copy all project files
+COPY . .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -e .
-
-# Expose port
-EXPOSE 8080
 
 # Run the Smithery HTTP server
 CMD ["python", "-m", "src.smithery_server"]

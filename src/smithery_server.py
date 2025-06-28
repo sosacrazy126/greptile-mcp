@@ -20,23 +20,52 @@ from src.utils import get_greptile_client
 # Create FastAPI app (without custom lifespan event)
 app = FastAPI()
 
-async def parse_config(config_b64: Optional[str]) -> Dict[str, Any]:
+async def parse_base64_config(config_b64: Optional[str]) -> Dict[str, Any]:
     """Parse and apply configuration from base64-encoded query parameter"""
     if not config_b64:
         return {}
-    
     try:
         config_json = base64.b64decode(config_b64).decode('utf-8')
         config = json.loads(config_json)
-        
-        # Apply configuration to environment variables
         for key, value in config.items():
             os.environ[key] = str(value)
-        
         return config
     except Exception as e:
         print(f"Error parsing config: {e}")
         return {}
+
+def parse_dot_params(params: Dict[str, str]) -> Dict[str, Any]:
+    """
+    Convert dot-notation query params into dict.
+    For now, just flatten key/values (no nesting).
+    """
+    return dict(params)
+
+def merge_config_from_request(request: Request) -> Dict[str, Any]:
+    """
+    Merge config from query params and base64 config param. 
+    Sets resulting values into os.environ (as string).
+    """
+    params = dict(request.query_params)
+    config = {}
+
+    # 1. Parse dot-notation query params
+    config.update(parse_dot_params(params))
+
+    # 2. Look for base64 config for backwards compatibility
+    config_b64 = params.get("config")
+    if config_b64:
+        try:
+            parsed = base64.b64decode(config_b64).decode('utf-8')
+            config_dict = json.loads(parsed)
+            config.update(config_dict)
+        except Exception as e:
+            print(f"Failed to parse base64 config: {e}")
+
+    # 3. Set values in os.environ
+    for k, v in config.items():
+        os.environ[k] = str(v)
+    return config
 
 async def list_tools_response():
     """Helper function to construct the tools list response for /mcp and /tools endpoints."""
@@ -68,19 +97,15 @@ async def mcp_list_tools(request: Request):
     Handle GET request for MCP endpoint - list available tools.
     This endpoint doesn't require authentication (lazy loading).
     """
+    merge_config_from_request(request)
     tools_response = await list_tools_response()
-    
-    # Check if this is a JSON-RPC style request (has id parameter)
     query_params = dict(request.query_params)
     if 'id' in query_params:
-        # Return JSON-RPC format
         return {
             "jsonrpc": "2.0",
             "id": query_params.get('id'),
             "result": tools_response
         }
-    
-    # For regular GET requests, still include jsonrpc field for compatibility
     return {
         "jsonrpc": "2.0",
         "result": tools_response
@@ -92,6 +117,7 @@ async def tools_list_get(request: Request):
     Handle GET request for /tools endpoint - list available tools.
     This endpoint doesn't require authentication (lazy loading).
     """
+    merge_config_from_request(request)
     return await list_tools_response()
 
 @app.post("/tools")
@@ -100,15 +126,13 @@ async def tools_list_post(request: Request):
     Handle POST request for /tools endpoint - list available tools.
     Accepts an empty JSON body or config, compatible with Smithery orchestrator.
     """
+    merge_config_from_request(request)
     return await list_tools_response()
 
 @app.post("/mcp")
 async def mcp_execute_tool(request: Request):
     """Handle POST request for MCP endpoint - execute tools"""
-    # Parse config from query parameter
-    query_params = parse_qs(str(request.url.query))
-    config_b64 = query_params.get('config', [None])[0]
-    config = await parse_config(config_b64)
+    merge_config_from_request(request)
 
     # Parse request body
     try:
@@ -237,29 +261,14 @@ async def mcp_execute_tool(request: Request):
 
     # Execute the tool
     try:
-        # Use the MCP server's internal tool manager directly
         tool_manager = greptile_mcp._tool_manager
         tool_info = tool_manager._tools[tool_name]
-        
-        # Create a mock context that's compatible with FastMCP
-        class MockContext:
-            def __init__(self, greptile_context):
-                self.request_context = type('RequestContext', (), {
-                    'lifespan_context': greptile_context
-                })()
-        
-        ctx = MockContext(greptile_context)
-        
-        # Call the function directly with our context
         tool_func = tool_info.fn
         if tool_info.is_async:
             result = await tool_func(ctx, **tool_args)
         else:
             result = tool_func(ctx, **tool_args)
-        
-        # Convert result to proper format if needed
         if hasattr(result, '__iter__') and not isinstance(result, str):
-            # It's a list of content items
             content_list = list(result)
             return {
                 "jsonrpc": "2.0",
@@ -267,14 +276,12 @@ async def mcp_execute_tool(request: Request):
                 "result": content_list
             }
         elif isinstance(result, str):
-            # It's a direct string result
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
                 "result": [{"type": "text", "text": result}]
             }
         else:
-            # Return as is
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -328,5 +335,5 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", "8088"))
+    port = int(os.getenv("PORT", "8080"))
     uvicorn.run(app, host="0.0.0.0", port=port)

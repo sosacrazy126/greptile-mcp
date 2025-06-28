@@ -57,7 +57,6 @@ logs/
 # Testing and documentation
 tests/
 docs/
-README.md
 CONTRIBUTING.md
 LICENSE
 CHANGELOG.md
