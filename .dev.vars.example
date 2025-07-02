@@ -1,0 +1,39 @@
+# Development Environment Variables
+# Copy this file to .dev.vars and fill in your actual values
+# DO NOT commit .dev.vars to version control
+
+# Required MCP Server Secrets
+GREPTILE_API_KEY=your_greptile_api_key_here
+GITHUB_TOKEN=your_github_token_here
+GREPTILE_BASE_URL=https://api.greptile.com/v2
+
+# OAuth Configuration (Optional)
+OAUTH_ENABLED=true
+OAUTH_JWT_SECRET=dev_jwt_secret_change_in_production_minimum_32_chars
+OAUTH_REQUIRE_AUTH=false
+OAUTH_JWT_EXPIRATION_HOURS=24
+
+# OAuth Provider Configuration (Optional - configure only the providers you want to use)
+
+# GitHub OAuth
+OAUTH_GITHUB_CLIENT_ID=your_github_oauth_client_id
+OAUTH_GITHUB_CLIENT_SECRET=your_github_oauth_client_secret
+OAUTH_GITHUB_REDIRECT_URI=http://localhost:8787/auth/callback
+
+# Google OAuth
+OAUTH_GOOGLE_CLIENT_ID=your_google_oauth_client_id.googleusercontent.com
+OAUTH_GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+OAUTH_GOOGLE_REDIRECT_URI=http://localhost:8787/auth/callback
+
+# Auth0 OAuth
+OAUTH_AUTH0_CLIENT_ID=your_auth0_client_id
+OAUTH_AUTH0_CLIENT_SECRET=your_auth0_client_secret
+OAUTH_AUTH0_DOMAIN=your-tenant.auth0.com
+OAUTH_AUTH0_REDIRECT_URI=http://localhost:8787/auth/callback
+
+# User Permissions (Optional)
+OAUTH_ADMIN_USERS=your_github_username,user123
+OAUTH_ALLOWED_REPOSITORIES=owner/repo1,owner/repo2
+
+# CORS Configuration
+CORS_ORIGIN=*

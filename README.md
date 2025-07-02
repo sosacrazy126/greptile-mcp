@@ -2,6 +2,14 @@
 
 # Greptile MCP Server [COMPLETED]
 
+## 🚀 Quick Deploy to Cloudflare
+
+Deploy your own instance of the Greptile MCP server to Cloudflare Workers with one click:
+
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sosacrazy126/greptile-mcp)
+
+*This will automatically set up continuous deployment from your GitHub repository to Cloudflare's global edge network.*
+
 **Quick Run Command Cheatsheet**
 
 **✅ PROJECT STATUS: ALL TASKS COMPLETED (11/11)**
@@ -13,6 +21,7 @@ Please see [PROJECT_COMPLETION.md](./PROJECT_COMPLETION.md) for a summary of com
 | **Local (Python)** | `python -m venv .venv && source .venv/bin/activate && pip install -e .` | `python -m src.main`                          |
 | **Docker**        | `docker build -t greptile-mcp .`                                      | `docker run --rm --env-file .env -p 8050:8050 greptile-mcp` |
 | **Smithery**      | `npm install -g smithery`                                             | `smithery deploy` (see smithery.yaml)         |
+| **Cloudflare Workers** | `npm install -g @cloudflare/wrangler && npm install`             | `wrangler deploy` (see cloudflare setup below) |
 
 > Fill in `.env` using `.env.example` and set your `GREPTILE_API_KEY` and `GITHUB_TOKEN` before running.
 
@@ -21,9 +30,22 @@ For full prerequisites, advanced agent usage, integration, and troubleshooting:
 
 ---
 
-An MCP (Model Context Protocol) server implementation that integrates with the Greptile API to provide code search and querying capabilities to AI agents.
+An MCP (Model Context Protocol) server implementation that integrates with the Greptile API to provide code search and querying capabilities to AI agents. Now with **OAuth authentication support** for secure, multi-tenant access.
 
 [![smithery badge](https://smithery.ai/badge/@sosacrazy126/greptile-mcp)](https://smithery.ai/server/@sosacrazy126/greptile-mcp)
+
+## 🔐 NEW: OAuth Authentication
+
+The server now supports **optional OAuth authentication** with multiple providers:
+
+- **Multiple Providers**: GitHub, Google, Auth0
+- **Secure JWT Tokens**: Industry-standard session management
+- **Role-based Access**: Admin and user permission levels
+- **Rate Limiting**: Built-in protection against abuse
+- **Backward Compatible**: Existing integrations continue to work
+- **Multi-tenant Ready**: User-scoped sessions and repository access
+
+[**📖 See OAuth Documentation**](./OAUTH_README.md) | [**⚙️ Configuration Examples**](./cloudflare/oauth_config_examples.md)
 
 ## Features
 
@@ -49,11 +71,13 @@ The server provides four essential Greptile tools that enable AI agents to inter
    - Verify which repositories are available for querying
    - Get metadata about indexed repositories
 
-## Smithery Deployment
+## Deployment Options
+
+### Smithery Deployment
 
 The Greptile MCP server supports deployment via Smithery. A `smithery.yaml` configuration file is included in the project root.
 
-### Smithery Configuration
+#### Smithery Configuration
 
 The Smithery configuration is defined in `smithery.yaml` and supports the following options:
 
@@ -89,13 +113,166 @@ startCommand:
         default: "8050"
 ```
 
-### Using with Smithery
+#### Using with Smithery
 
 To deploy using Smithery:
 
 1. Install Smithery: `npm install -g smithery`
 2. Deploy the server: `smithery deploy`
 3. Configure your Smithery client with the required API keys
+
+### Cloudflare Workers Deployment
+
+The Greptile MCP server can be deployed to Cloudflare Workers for global edge deployment with automatic scaling, zero cold start, and enterprise-grade security.
+
+#### Prerequisites for Cloudflare Workers
+
+- **Cloudflare Account** with Workers plan (Free tier available)
+- **Wrangler CLI** - Cloudflare's command-line tool
+- **Node.js 18+** for development and deployment
+- **Greptile API Key** and **GitHub/GitLab Token** (same as other deployment methods)
+
+#### Cloudflare Workers Setup
+
+1. **Install Wrangler CLI**:
+   ```bash
+   npm install -g @cloudflare/wrangler
+   ```
+
+2. **Authenticate with Cloudflare**:
+   ```bash
+   wrangler login
+   ```
+
+3. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+4. **Configure environment variables**:
+   Create a `wrangler.toml` file in the project root:
+   ```toml
+   name = "greptile-mcp-server"
+   main = "src/worker.js"
+   compatibility_date = "2024-01-01"
+   compatibility_flags = ["nodejs_compat"]
+   
+   [env.production.vars]
+   GREPTILE_BASE_URL = "https://api.greptile.com/v2"
+   TRANSPORT = "sse"
+   
+   [[env.production.kv_namespaces]]
+   binding = "SESSION_STORE"
+   id = "your-kv-namespace-id"
+   ```
+
+5. **Set secret environment variables**:
+   ```bash
+   # Set your API keys as encrypted secrets
+   wrangler secret put GREPTILE_API_KEY
+   wrangler secret put GITHUB_TOKEN
+   ```
+
+6. **Create the Worker script** (`src/worker.js`):
+   ```javascript
+   import { createMCPServer } from './main.js';
+   
+   export default {
+     async fetch(request, env, ctx) {
+       // Initialize MCP server with Cloudflare Workers environment
+       const server = createMCPServer({
+         greptileApiKey: env.GREPTILE_API_KEY,
+         githubToken: env.GITHUB_TOKEN,
+         baseUrl: env.GREPTILE_BASE_URL || 'https://api.greptile.com/v2',
+         sessionStore: env.SESSION_STORE
+       });
+       
+       return await server.handleRequest(request);
+     },
+   };
+   ```
+
+7. **Deploy to Cloudflare Workers**:
+   ```bash
+   wrangler deploy
+   ```
+
+#### Cloudflare Workers Features
+
+- **Global Edge Network**: Deployed across 200+ cities worldwide
+- **Zero Cold Start**: Sub-millisecond response times
+- **Automatic Scaling**: Handles traffic spikes without configuration
+- **Built-in Security**: DDoS protection, WAF, and SSL/TLS termination
+- **KV Storage**: Distributed session management and caching
+- **Cost Effective**: Pay only for requests, generous free tier
+
+#### Cloudflare Workers Performance Comparison
+
+| Deployment Method | Cold Start | Global Availability | Auto-scaling | Cost (1M requests) |
+|------------------|------------|-------------------|--------------|-------------------|
+| **Local Python** | N/A | Single location | Manual | Server costs |
+| **Docker** | ~1-5s | Single/Multi region | Manual/K8s | Server + orchestration |
+| **Smithery** | ~2-10s | Smithery locations | Smithery managed | Smithery pricing |
+| **Cloudflare Workers** | <1ms | 200+ global locations | Automatic | $0.50 (after free tier) |
+
+#### Cloudflare Workers Security Considerations
+
+**Advantages**:
+- Built-in DDoS protection and Web Application Firewall (WAF)
+- Automatic SSL/TLS certificate management
+- Encrypted environment variables for API keys
+- Request rate limiting and geographic restrictions available
+- Compliance with SOC 2 Type II, ISO 27001, and other standards
+
+**Important Considerations**:
+- API keys are stored as encrypted Worker secrets
+- All traffic is automatically encrypted with TLS 1.3
+- Workers run in a secure V8 isolate environment
+- No persistent file system - all data must use KV storage or external services
+- Consider implementing additional authentication for production use:
+
+```javascript
+// Example: Add API key authentication
+if (request.headers.get('Authorization') !== `Bearer ${env.MCP_ACCESS_TOKEN}`) {
+  return new Response('Unauthorized', { status: 401 });
+}
+```
+
+#### Cloudflare Workers Troubleshooting
+
+**Common Issues**:
+
+1. **CPU Time Limits**:
+   - Free tier: 10ms CPU time per request
+   - Paid plans: 50ms CPU time per request
+   - Solution: Optimize code for edge computing patterns
+
+2. **Memory Limits**:
+   - 128MB memory limit per Worker
+   - Solution: Use streaming responses for large datasets
+
+3. **Request Size Limits**:
+   - 100MB request/response size limit
+   - Solution: Implement request chunking for large payloads
+
+4. **KV Storage Eventual Consistency**:
+   - KV writes are eventually consistent (may take up to 60 seconds globally)
+   - Solution: Use appropriate caching strategies and handle stale data
+
+**Debugging Commands**:
+```bash
+# View Worker logs in real-time
+wrangler tail
+
+# Test Worker locally
+wrangler dev
+
+# View deployment status
+wrangler deployments list
+
+# Check Worker metrics
+wrangler metrics
+```
 
 ### Additional Documentation
 
@@ -208,7 +385,7 @@ docker run --rm -i --env-file .env -e TRANSPORT=stdio greptile-mcp
 
 ## Integration with MCP Clients
 
-### SSE Configuration Example
+### Local SSE Configuration Example
 
 Add this to your MCP client's configuration (e.g., `mcp_config.json`):
 
@@ -218,6 +395,24 @@ Add this to your MCP client's configuration (e.g., `mcp_config.json`):
     "greptile": {
       "transport": "sse",
       "url": "http://localhost:8050/sse"
+    }
+  }
+}
+```
+
+### Remote SSE Configuration (Cloudflare Workers)
+
+For Cloudflare Workers deployment:
+
+```json
+{
+  "mcpServers": {
+    "greptile": {
+      "transport": "sse",
+      "url": "https://your-worker.your-subdomain.workers.dev/sse",
+      "headers": {
+        "Authorization": "Bearer YOUR_MCP_ACCESS_TOKEN"
+      }
     }
   }
 }
@@ -500,6 +695,8 @@ Gets information about a specific repository that has been indexed.
 
 ### 1. Integration with Claude.ai via Anthropic API
 
+#### Local Deployment Integration
+
 ```python
 from anthropic import Anthropic
 import json
@@ -508,7 +705,7 @@ import requests
 # Set up Anthropic client
 anthropic = Anthropic(api_key="your_anthropic_key")
 
-# Function to call Greptile MCP
+# Function to call Greptile MCP (local)
 def query_code(question, repositories):
     response = requests.post(
         "http://localhost:8050/tools/greptile/query_repository",
@@ -516,6 +713,33 @@ def query_code(question, repositories):
             "query": question,
             "repositories": repositories,
             "genius": True
+        }
+    )
+    return json.loads(response.text)
+```
+
+#### Remote Deployment Integration (Cloudflare Workers)
+
+```python
+from anthropic import Anthropic
+import json
+import requests
+
+# Set up Anthropic client
+anthropic = Anthropic(api_key="your_anthropic_key")
+
+# Function to call Greptile MCP (remote)
+def query_code_remote(question, repositories, worker_url, access_token):
+    response = requests.post(
+        f"{worker_url}/tools/greptile/query_repository",
+        json={
+            "query": question,
+            "repositories": repositories,
+            "genius": True
+        },
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
         }
     )
     return json.loads(response.text)
@@ -551,6 +775,8 @@ print(answer)
 
 ### 2. Integration with an LLM-based Chatbot
 
+#### Local Integration
+
 ```python
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -559,8 +785,24 @@ import json
 
 app = FastAPI()
 
-# Greptile MCP endpoint
+# Greptile MCP endpoint (local)
 GREPTILE_MCP_URL = "http://localhost:8050/tools/greptile"
+```
+
+#### Remote Integration (Cloudflare Workers)
+
+```python
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import httpx
+import json
+import os
+
+app = FastAPI()
+
+# Greptile MCP endpoint (remote)
+GREPTILE_MCP_URL = "https://your-worker.your-subdomain.workers.dev/tools/greptile"
+MCP_ACCESS_TOKEN = os.getenv("MCP_ACCESS_TOKEN")
 
 @app.post("/chat")
 async def chat_endpoint(request: Request):
@@ -570,6 +812,10 @@ async def chat_endpoint(request: Request):
     # Check if this is a code-related question
     if "code" in user_message or "repository" in user_message or "function" in user_message:
         # Query the repository through Greptile MCP
+        headers = {"Content-Type": "application/json"}
+        if MCP_ACCESS_TOKEN:  # Add auth header for remote deployment
+            headers["Authorization"] = f"Bearer {MCP_ACCESS_TOKEN}"
+            
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{GREPTILE_MCP_URL}/query_repository",
@@ -579,7 +825,8 @@ async def chat_endpoint(request: Request):
                         {"remote": "github", "repository": "your-org/your-repo", "branch": "main"}
                     ],
                     "genius": True
-                }
+                },
+                headers=headers
             )
             
             greptile_result = response.json()
@@ -607,6 +854,7 @@ async def chat_endpoint(request: Request):
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import requests
 import sys
 
@@ -644,9 +892,19 @@ def main():
     
     # Make the request
     try:
+        headers = {"Content-Type": "application/json"}
+        # For remote deployment, add authentication
+        access_token = os.getenv("MCP_ACCESS_TOKEN")
+        if access_token:
+            headers["Authorization"] = f"Bearer {access_token}"
+            
+        # Use environment variable for MCP URL or default to local
+        mcp_url = os.getenv("GREPTILE_MCP_URL", "http://localhost:8050/tools/greptile")
+        
         response = requests.post(
-            "http://localhost:8050/tools/greptile/query_repository",
-            json=payload
+            f"{mcp_url}/query_repository",
+            json=payload,
+            headers=headers
         )
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
@@ -726,6 +984,8 @@ curl -H "Authorization: token YOUR_GITHUB_TOKEN" https://api.github.com/user
 
 ### Logs and Debugging
 
+#### Local and Docker Debugging
+
 To enable more verbose logging, set the following environment variables:
 
 ```bash
@@ -741,20 +1001,76 @@ For troubleshooting specific MCP interactions, examine the MCP server logs:
 LOG_LEVEL=debug python -m src.main
 ```
 
+#### Cloudflare Workers Debugging
+
+For Cloudflare Workers deployment:
+
+```bash
+# View real-time logs
+wrangler tail your-worker-name
+
+# Test locally with debugging
+wrangler dev --local
+
+# Check deployment logs
+wrangler deployments list
+
+# View Worker analytics
+wrangler metrics
+```
+
+**Common Cloudflare Workers Issues**:
+
+1. **Worker Script Errors**:
+   ```bash
+   # Check syntax and runtime errors
+   wrangler dev --local
+   ```
+
+2. **Environment Variable Issues**:
+   ```bash
+   # List all secrets
+   wrangler secret list
+   
+   # Update a secret
+   wrangler secret put GREPTILE_API_KEY
+   ```
+
+3. **KV Storage Issues**:
+   ```bash
+   # List KV namespaces
+   wrangler kv:namespace list
+   
+   # Check KV data
+   wrangler kv:key list --namespace-id=your-namespace-id
+   ```
+
+4. **Request/Response Size Limits**:
+   - Monitor request sizes in Worker logs
+   - Implement streaming for large responses
+   - Use compression for API responses
+
+5. **CPU Time Limits**:
+   - Optimize code for minimal CPU usage
+   - Use caching strategies
+   - Consider upgrading to paid plan for higher limits
+
 ## Advanced Configuration
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `TRANSPORT` | Transport method (`sse` or `stdio`) | `sse` |
-| `HOST` | Host to bind to for SSE transport | `0.0.0.0` |
-| `PORT` | Port for SSE transport | `8050` |
-| `GREPTILE_API_KEY` | Your Greptile API key | (required) |
-| `GITHUB_TOKEN` | GitHub/GitLab personal access token | (required) |
-| `GREPTILE_BASE_URL` | Greptile API base URL | `https://api.greptile.com/v2` |
-| `DEBUG` | Enable debug mode | `false` |
-| `LOG_LEVEL` | Logging level | `info` |
+| Variable | Description | Default | Cloudflare Workers |
+|----------|-------------|---------|-------------------|
+| `TRANSPORT` | Transport method (`sse` or `stdio`) | `sse` | `sse` (recommended) |
+| `HOST` | Host to bind to for SSE transport | `0.0.0.0` | N/A (handled by CF) |
+| `PORT` | Port for SSE transport | `8050` | N/A (handled by CF) |
+| `GREPTILE_API_KEY` | Your Greptile API key | (required) | Worker Secret |
+| `GITHUB_TOKEN` | GitHub/GitLab personal access token | (required) | Worker Secret |
+| `GREPTILE_BASE_URL` | Greptile API base URL | `https://api.greptile.com/v2` | Environment Variable |
+| `DEBUG` | Enable debug mode | `false` | Environment Variable |
+| `LOG_LEVEL` | Logging level | `info` | Environment Variable |
+| `MCP_ACCESS_TOKEN` | Access token for remote MCP server | (optional) | Worker Secret |
+| `CF_KV_NAMESPACE` | Cloudflare KV namespace for sessions | N/A | KV Binding |
 
 ### Custom API Endpoints
 

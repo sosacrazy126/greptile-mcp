@@ -1,0 +1,34 @@
+{
+  "name": "greptile-mcp-server",
+  "description": "MCP server for code search and querying with Greptile API - Deploy to Cloudflare Workers",
+  "repository": "https://github.com/sosacrazy126/greptile-mcp",
+  "main": "src/worker.ts",
+  "compatibility_date": "2025-01-01",
+  "environment_variables": {
+    "GREPTILE_API_KEY": {
+      "description": "API key for accessing the Greptile API",
+      "required": true,
+      "type": "secret"
+    },
+    "GITHUB_TOKEN": {
+      "description": "GitHub Personal Access Token for repository access",
+      "required": true,
+      "type": "secret"
+    },
+    "GREPTILE_BASE_URL": {
+      "description": "Base URL for Greptile API",
+      "default": "https://api.greptile.com/v2",
+      "required": false
+    }
+  },
+  "build": {
+    "command": "npm install",
+    "output_dir": "."
+  },
+  "preview": {
+    "command": "wrangler dev"
+  },
+  "deploy": {
+    "command": "wrangler deploy"
+  }
+}

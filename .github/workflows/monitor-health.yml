@@ -1,0 +1,752 @@
+# Cloudflare Workers Health Monitoring Workflow
+#
+# This workflow provides continuous monitoring and health checks for the Greptile MCP Server
+# deployed on Cloudflare Workers. It ensures service availability and performance.
+#
+# Features:
+# - Continuous health monitoring of staging and production environments
+# - Performance benchmarking and SLA monitoring
+# - Automatic issue creation on service degradation
+# - Integration with external monitoring services
+# - Detailed uptime and performance reporting
+
+name: 🏥 Health Monitoring
+
+on:
+  # Scheduled health checks
+  schedule:
+    # Every 15 minutes during business hours (UTC)
+    - cron: '*/15 8-20 * * 1-5'
+    # Every hour outside business hours and weekends
+    - cron: '0 */1 * * *'
+  
+  # Manual health check trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to check'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - staging
+          - production
+          - both
+      deep_check:
+        description: 'Perform deep health checks (includes API calls)'
+        required: false
+        default: false
+        type: boolean
+      create_issue:
+        description: 'Create issue if problems detected'
+        required: false
+        default: true
+        type: boolean
+
+  # Trigger after deployments
+  workflow_run:
+    workflows: ["🚀 Deploy to Cloudflare Workers"]
+    types: [completed]
+
+# Set permissions
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+# Global environment variables
+env:
+  STAGING_URL: 'https://greptile-mcp-server-staging.workers.dev'
+  PRODUCTION_URL: 'https://greptile-mcp-server.workers.dev'
+  HEALTH_TIMEOUT: 30
+  PERFORMANCE_THRESHOLD: 2000  # 2 seconds
+
+jobs:
+  # ==========================================
+  # JOB 1: Basic Health Checks
+  # ==========================================
+  basic-health-checks:
+    name: 🔍 Basic Health Checks
+    runs-on: ubuntu-latest
+    
+    outputs:
+      staging-status: ${{ steps.staging-health.outputs.status }}
+      staging-response-time: ${{ steps.staging-health.outputs.response-time }}
+      production-status: ${{ steps.production-health.outputs.status }}
+      production-response-time: ${{ steps.production-health.outputs.response-time }}
+      overall-status: ${{ steps.summary.outputs.status }}
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🏥 Check Staging Health
+        id: staging-health
+        if: |
+          github.event.inputs.environment != 'production'
+        run: |
+          echo "::group::Staging Health Check"
+          
+          start_time=$(date +%s%N)
+          
+          # Perform health check with timeout
+          if health_response=$(timeout ${{ env.HEALTH_TIMEOUT }} curl -s -w "HTTP_CODE:%{http_code}\nTIME_TOTAL:%{time_total}\n" "${{ env.STAGING_URL }}/health" 2>/dev/null); then
+            end_time=$(date +%s%N)
+            response_time=$(( (end_time - start_time) / 1000000 ))  # Convert to milliseconds
+            
+            http_code=$(echo "$health_response" | grep "HTTP_CODE:" | cut -d: -f2)
+            time_total=$(echo "$health_response" | grep "TIME_TOTAL:" | cut -d: -f2)
+            health_data=$(echo "$health_response" | grep -v "HTTP_CODE:\|TIME_TOTAL:")
+            
+            echo "HTTP Code: $http_code"
+            echo "Response Time: ${time_total}s (${response_time}ms)"
+            echo "Health Data: $health_data"
+            
+            if [ "$http_code" = "200" ]; then
+              # Validate health response structure
+              if echo "$health_data" | jq -e '.status == "healthy"' > /dev/null 2>&1; then
+                echo "status=healthy" >> $GITHUB_OUTPUT
+                echo "response-time=$response_time" >> $GITHUB_OUTPUT
+                echo "✅ Staging health check passed"
+              else
+                echo "status=unhealthy" >> $GITHUB_OUTPUT
+                echo "response-time=$response_time" >> $GITHUB_OUTPUT
+                echo "❌ Staging health check failed - invalid response format"
+              fi
+            else
+              echo "status=error" >> $GITHUB_OUTPUT  
+              echo "response-time=$response_time" >> $GITHUB_OUTPUT
+              echo "❌ Staging health check failed - HTTP $http_code"
+            fi
+          else
+            echo "status=timeout" >> $GITHUB_OUTPUT
+            echo "response-time=30000" >> $GITHUB_OUTPUT
+            echo "❌ Staging health check timed out"
+          fi
+          
+          echo "::endgroup::"
+
+      - name: 🏭 Check Production Health
+        id: production-health
+        if: |
+          github.event.inputs.environment != 'staging'
+        run: |
+          echo "::group::Production Health Check"
+          
+          start_time=$(date +%s%N)
+          
+          # Perform health check with timeout
+          if health_response=$(timeout ${{ env.HEALTH_TIMEOUT }} curl -s -w "HTTP_CODE:%{http_code}\nTIME_TOTAL:%{time_total}\n" "${{ env.PRODUCTION_URL }}/health" 2>/dev/null); then
+            end_time=$(date +%s%N)
+            response_time=$(( (end_time - start_time) / 1000000 ))  # Convert to milliseconds
+            
+            http_code=$(echo "$health_response" | grep "HTTP_CODE:" | cut -d: -f2)
+            time_total=$(echo "$health_response" | grep "TIME_TOTAL:" | cut -d: -f2)
+            health_data=$(echo "$health_response" | grep -v "HTTP_CODE:\|TIME_TOTAL:")
+            
+            echo "HTTP Code: $http_code"
+            echo "Response Time: ${time_total}s (${response_time}ms)"
+            echo "Health Data: $health_data"
+            
+            if [ "$http_code" = "200" ]; then
+              # Validate health response structure
+              if echo "$health_data" | jq -e '.status == "healthy"' > /dev/null 2>&1; then
+                echo "status=healthy" >> $GITHUB_OUTPUT
+                echo "response-time=$response_time" >> $GITHUB_OUTPUT
+                echo "✅ Production health check passed"
+              else
+                echo "status=unhealthy" >> $GITHUB_OUTPUT
+                echo "response-time=$response_time" >> $GITHUB_OUTPUT
+                echo "❌ Production health check failed - invalid response format"
+              fi
+            else
+              echo "status=error" >> $GITHUB_OUTPUT
+              echo "response-time=$response_time" >> $GITHUB_OUTPUT
+              echo "❌ Production health check failed - HTTP $http_code"
+            fi
+          else
+            echo "status=timeout" >> $GITHUB_OUTPUT
+            echo "response-time=30000" >> $GITHUB_OUTPUT
+            echo "❌ Production health check timed out"
+          fi
+          
+          echo "::endgroup::"
+
+      - name: 📊 Health Check Summary
+        id: summary
+        run: |
+          echo "::group::Health Check Summary"
+          
+          staging_status="${{ steps.staging-health.outputs.status }}"
+          production_status="${{ steps.production-health.outputs.status }}"
+          
+          # Determine overall status
+          if [[ "$staging_status" == "healthy" && "$production_status" == "healthy" ]]; then
+            overall_status="healthy"
+          elif [[ "$staging_status" == "healthy" || "$production_status" == "healthy" ]]; then
+            overall_status="degraded"
+          else
+            overall_status="unhealthy"
+          fi
+          
+          echo "status=$overall_status" >> $GITHUB_OUTPUT
+          
+          echo "Overall Status: $overall_status"
+          echo "Staging: $staging_status"
+          echo "Production: $production_status"
+          
+          echo "::endgroup::"
+
+  # ==========================================
+  # JOB 2: Deep Health Checks
+  # ==========================================
+  deep-health-checks:
+    name: 🔬 Deep Health Checks
+    runs-on: ubuntu-latest
+    needs: [basic-health-checks]
+    if: |
+      github.event.inputs.deep_check == 'true' ||
+      needs.basic-health-checks.outputs.overall-status != 'healthy'
+    
+    outputs:
+      staging-api-status: ${{ steps.staging-api.outputs.status }}
+      production-api-status: ${{ steps.production-api.outputs.status }}
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🧪 Test Staging API Endpoints
+        id: staging-api
+        if: |
+          needs.basic-health-checks.outputs.staging-status != '' &&
+          github.event.inputs.environment != 'production'
+        run: |
+          echo "::group::Staging API Tests"
+          
+          api_tests_passed=0
+          total_api_tests=3
+          
+          # Test 1: Server info endpoint
+          echo "Testing /mcp endpoint..."
+          if mcp_response=$(curl -s -m 10 "${{ env.STAGING_URL }}/mcp"); then
+            if echo "$mcp_response" | jq -e '.name == "greptile-mcp-server"' > /dev/null 2>&1; then
+              echo "✅ MCP endpoint test passed"
+              api_tests_passed=$((api_tests_passed + 1))
+            else
+              echo "❌ MCP endpoint test failed - invalid response"
+            fi
+          else
+            echo "❌ MCP endpoint test failed - no response"
+          fi
+          
+          # Test 2: CORS headers
+          echo "Testing CORS headers..."
+          if cors_response=$(curl -s -I -m 10 "${{ env.STAGING_URL }}/health"); then
+            if echo "$cors_response" | grep -i "access-control-allow-origin" > /dev/null; then
+              echo "✅ CORS headers test passed"
+              api_tests_passed=$((api_tests_passed + 1))
+            else
+              echo "❌ CORS headers test failed"
+            fi
+          else
+            echo "❌ CORS headers test failed - no response"
+          fi
+          
+          # Test 3: Error handling
+          echo "Testing error handling..."
+          if error_response=$(curl -s -m 10 "${{ env.STAGING_URL }}/nonexistent"); then
+            if echo "$error_response" | jq -e '.success == false' > /dev/null 2>&1; then
+              echo "✅ Error handling test passed"
+              api_tests_passed=$((api_tests_passed + 1))
+            else
+              echo "❌ Error handling test failed - unexpected response"
+            fi
+          else
+            echo "❌ Error handling test failed - no response"
+          fi
+          
+          # Determine API status
+          if [ $api_tests_passed -eq $total_api_tests ]; then
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo "✅ All staging API tests passed ($api_tests_passed/$total_api_tests)"
+          elif [ $api_tests_passed -gt 0 ]; then
+            echo "status=degraded" >> $GITHUB_OUTPUT
+            echo "⚠️  Some staging API tests failed ($api_tests_passed/$total_api_tests)"
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "❌ All staging API tests failed ($api_tests_passed/$total_api_tests)"
+          fi
+          
+          echo "::endgroup::"
+
+      - name: 🧪 Test Production API Endpoints
+        id: production-api
+        if: |
+          needs.basic-health-checks.outputs.production-status != '' &&
+          github.event.inputs.environment != 'staging'
+        run: |
+          echo "::group::Production API Tests"
+          
+          api_tests_passed=0
+          total_api_tests=3
+          
+          # Test 1: Server info endpoint
+          echo "Testing /mcp endpoint..."
+          if mcp_response=$(curl -s -m 10 "${{ env.PRODUCTION_URL }}/mcp"); then
+            if echo "$mcp_response" | jq -e '.name == "greptile-mcp-server"' > /dev/null 2>&1; then
+              echo "✅ MCP endpoint test passed"
+              api_tests_passed=$((api_tests_passed + 1))
+            else
+              echo "❌ MCP endpoint test failed - invalid response"
+            fi
+          else
+            echo "❌ MCP endpoint test failed - no response"
+          fi
+          
+          # Test 2: CORS headers
+          echo "Testing CORS headers..."
+          if cors_response=$(curl -s -I -m 10 "${{ env.PRODUCTION_URL }}/health"); then
+            if echo "$cors_response" | grep -i "access-control-allow-origin" > /dev/null; then
+              echo "✅ CORS headers test passed"
+              api_tests_passed=$((api_tests_passed + 1))
+            else
+              echo "❌ CORS headers test failed"
+            fi
+          else
+            echo "❌ CORS headers test failed - no response"
+          fi
+          
+          # Test 3: Error handling
+          echo "Testing error handling..."
+          if error_response=$(curl -s -m 10 "${{ env.PRODUCTION_URL }}/nonexistent"); then
+            if echo "$error_response" | jq -e '.success == false' > /dev/null 2>&1; then
+              echo "✅ Error handling test passed"
+              api_tests_passed=$((api_tests_passed + 1))
+            else
+              echo "❌ Error handling test failed - unexpected response"
+            fi
+          else
+            echo "❌ Error handling test failed - no response"
+          fi
+          
+          # Determine API status
+          if [ $api_tests_passed -eq $total_api_tests ]; then
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo "✅ All production API tests passed ($api_tests_passed/$total_api_tests)"
+          elif [ $api_tests_passed -gt 0 ]; then
+            echo "status=degraded" >> $GITHUB_OUTPUT
+            echo "⚠️  Some production API tests failed ($api_tests_passed/$total_api_tests)"
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "❌ All production API tests failed ($api_tests_passed/$total_api_tests)"
+          fi
+          
+          echo "::endgroup::"
+
+  # ==========================================
+  # JOB 3: Performance Monitoring
+  # ==========================================
+  performance-monitoring:
+    name: ⚡ Performance Monitoring
+    runs-on: ubuntu-latest
+    needs: [basic-health-checks]
+    if: |
+      needs.basic-health-checks.outputs.overall-status == 'healthy' ||
+      github.event.inputs.deep_check == 'true'
+    
+    outputs:
+      staging-performance: ${{ steps.staging-perf.outputs.grade }}
+      production-performance: ${{ steps.production-perf.outputs.grade }}
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚡ Staging Performance Test
+        id: staging-perf
+        if: |
+          needs.basic-health-checks.outputs.staging-status == 'healthy' &&
+          github.event.inputs.environment != 'production'
+        run: |
+          echo "::group::Staging Performance Test"
+          
+          total_time=0
+          test_count=5
+          successful_tests=0
+          
+          for i in $(seq 1 $test_count); do
+            echo "Performance test $i/$test_count"
+            
+            start_time=$(date +%s%N)
+            if curl -s -m 10 "${{ env.STAGING_URL }}/health" > /dev/null; then
+              end_time=$(date +%s%N)
+              response_time=$(( (end_time - start_time) / 1000000 ))
+              total_time=$((total_time + response_time))
+              successful_tests=$((successful_tests + 1))
+              echo "  Response time: ${response_time}ms"
+            else
+              echo "  Request failed"
+            fi
+            
+            sleep 1
+          done
+          
+          if [ $successful_tests -gt 0 ]; then
+            avg_response_time=$((total_time / successful_tests))
+            echo "Average response time: ${avg_response_time}ms"
+            
+            # Grade performance
+            if [ $avg_response_time -lt 500 ]; then
+              grade="excellent"
+            elif [ $avg_response_time -lt 1000 ]; then
+              grade="good"
+            elif [ $avg_response_time -lt ${{ env.PERFORMANCE_THRESHOLD }} ]; then
+              grade="acceptable"
+            else
+              grade="poor"
+            fi
+            
+            echo "grade=$grade" >> $GITHUB_OUTPUT
+            echo "Performance grade: $grade"
+          else
+            echo "grade=failed" >> $GITHUB_OUTPUT
+            echo "Performance grade: failed (no successful tests)"
+          fi
+          
+          echo "::endgroup::"
+
+      - name: ⚡ Production Performance Test
+        id: production-perf
+        if: |
+          needs.basic-health-checks.outputs.production-status == 'healthy' &&
+          github.event.inputs.environment != 'staging'
+        run: |
+          echo "::group::Production Performance Test"
+          
+          total_time=0
+          test_count=5
+          successful_tests=0
+          
+          for i in $(seq 1 $test_count); do
+            echo "Performance test $i/$test_count"
+            
+            start_time=$(date +%s%N)
+            if curl -s -m 10 "${{ env.PRODUCTION_URL }}/health" > /dev/null; then
+              end_time=$(date +%s%N)
+              response_time=$(( (end_time - start_time) / 1000000 ))
+              total_time=$((total_time + response_time))
+              successful_tests=$((successful_tests + 1))
+              echo "  Response time: ${response_time}ms"
+            else
+              echo "  Request failed"
+            fi
+            
+            sleep 1
+          done
+          
+          if [ $successful_tests -gt 0 ]; then
+            avg_response_time=$((total_time / successful_tests))
+            echo "Average response time: ${avg_response_time}ms"
+            
+            # Grade performance
+            if [ $avg_response_time -lt 500 ]; then
+              grade="excellent"
+            elif [ $avg_response_time -lt 1000 ]; then
+              grade="good"
+            elif [ $avg_response_time -lt ${{ env.PERFORMANCE_THRESHOLD }} ]; then
+              grade="acceptable"
+            else
+              grade="poor"
+            fi
+            
+            echo "grade=$grade" >> $GITHUB_OUTPUT
+            echo "Performance grade: $grade"
+          else
+            echo "grade=failed" >> $GITHUB_OUTPUT
+            echo "Performance grade: failed (no successful tests)"
+          fi
+          
+          echo "::endgroup::"
+
+  # ==========================================
+  # JOB 4: Reporting and Alerting
+  # ==========================================
+  reporting-and-alerting:
+    name: 📊 Reporting & Alerting
+    runs-on: ubuntu-latest
+    needs: [basic-health-checks, deep-health-checks, performance-monitoring]
+    if: always()
+    
+    steps:
+      - name: 📊 Generate Health Report
+        run: |
+          echo "::group::Health Report Generation"
+          
+          echo "## 🏥 Health Monitoring Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Date**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Overall Status**: ${{ needs.basic-health-checks.outputs.overall-status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Basic health status
+          echo "### 🔍 Basic Health Checks" >> $GITHUB_STEP_SUMMARY
+          
+          staging_status="${{ needs.basic-health-checks.outputs.staging-status }}"
+          staging_time="${{ needs.basic-health-checks.outputs.staging-response-time }}"
+          if [ -n "$staging_status" ]; then
+            if [ "$staging_status" = "healthy" ]; then
+              echo "✅ **Staging**: Healthy (${staging_time}ms)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ **Staging**: $staging_status (${staging_time}ms)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⏭️ **Staging**: Not checked" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          production_status="${{ needs.basic-health-checks.outputs.production-status }}"
+          production_time="${{ needs.basic-health-checks.outputs.production-response-time }}"
+          if [ -n "$production_status" ]; then
+            if [ "$production_status" = "healthy" ]; then
+              echo "✅ **Production**: Healthy (${production_time}ms)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ **Production**: $production_status (${production_time}ms)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⏭️ **Production**: Not checked" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Deep health checks if performed
+          staging_api="${{ needs.deep-health-checks.outputs.staging-api-status }}"
+          production_api="${{ needs.deep-health-checks.outputs.production-api-status }}"
+          if [[ -n "$staging_api" || -n "$production_api" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🔬 Deep Health Checks" >> $GITHUB_STEP_SUMMARY
+            
+            if [ -n "$staging_api" ]; then
+              if [ "$staging_api" = "healthy" ]; then
+                echo "✅ **Staging API**: All tests passed" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "❌ **Staging API**: $staging_api" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+            
+            if [ -n "$production_api" ]; then
+              if [ "$production_api" = "healthy" ]; then
+                echo "✅ **Production API**: All tests passed" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "❌ **Production API**: $production_api" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          fi
+          
+          # Performance monitoring if performed
+          staging_perf="${{ needs.performance-monitoring.outputs.staging-performance }}"
+          production_perf="${{ needs.performance-monitoring.outputs.production-performance }}"
+          if [[ -n "$staging_perf" || -n "$production_perf" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ⚡ Performance Monitoring" >> $GITHUB_STEP_SUMMARY
+            
+            if [ -n "$staging_perf" ]; then
+              echo "**Staging Performance**: $staging_perf" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ -n "$production_perf" ]; then
+              echo "**Production Performance**: $production_perf" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Automated health monitoring from GitHub Actions*" >> $GITHUB_STEP_SUMMARY
+          
+          echo "::endgroup::"
+
+      - name: 🚨 Create Issue on Service Degradation
+        if: |
+          (github.event.inputs.create_issue != 'false') &&
+          (needs.basic-health-checks.outputs.overall-status == 'unhealthy' ||
+           needs.basic-health-checks.outputs.overall-status == 'degraded' ||
+           contains(needs.deep-health-checks.outputs.staging-api-status, 'failed') ||
+           contains(needs.deep-health-checks.outputs.production-api-status, 'failed') ||
+           contains(needs.performance-monitoring.outputs.staging-performance, 'poor') ||
+           contains(needs.performance-monitoring.outputs.production-performance, 'poor'))
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const overallStatus = '${{ needs.basic-health-checks.outputs.overall-status }}';
+            const severity = overallStatus === 'unhealthy' ? '🚨 Critical' : '⚠️ Warning';
+            
+            const title = `${severity}: Service Health Alert - ${new Date().toISOString().split('T')[0]}`;
+            
+            let body = `## ${severity}: Service Health Alert
+            
+            **Date**: ${new Date().toISOString()}
+            **Overall Status**: ${overallStatus}
+            **Detection**: Automated health monitoring
+            
+            ### Service Status Details
+            
+            `;
+            
+            // Basic health status
+            const stagingStatus = '${{ needs.basic-health-checks.outputs.staging-status }}';
+            const productionStatus = '${{ needs.basic-health-checks.outputs.production-status }}';
+            const stagingTime = '${{ needs.basic-health-checks.outputs.staging-response-time }}';
+            const productionTime = '${{ needs.basic-health-checks.outputs.production-response-time }}';
+            
+            if (stagingStatus) {
+              const statusIcon = stagingStatus === 'healthy' ? '✅' : '❌';
+              body += `${statusIcon} **Staging**: ${stagingStatus} (${stagingTime}ms)\n`;
+            }
+            
+            if (productionStatus) {
+              const statusIcon = productionStatus === 'healthy' ? '✅' : '❌';
+              body += `${statusIcon} **Production**: ${productionStatus} (${productionTime}ms)\n`;
+            }
+            
+            // API status if available
+            const stagingApi = '${{ needs.deep-health-checks.outputs.staging-api-status }}';
+            const productionApi = '${{ needs.deep-health-checks.outputs.production-api-status }}';
+            
+            if (stagingApi || productionApi) {
+              body += `\n### API Health Status\n\n`;
+              if (stagingApi) {
+                const apiIcon = stagingApi === 'healthy' ? '✅' : '❌';
+                body += `${apiIcon} **Staging API**: ${stagingApi}\n`;
+              }
+              if (productionApi) {
+                const apiIcon = productionApi === 'healthy' ? '✅' : '❌';
+                body += `${apiIcon} **Production API**: ${productionApi}\n`;
+              }
+            }
+            
+            // Performance status if available
+            const stagingPerf = '${{ needs.performance-monitoring.outputs.staging-performance }}';
+            const productionPerf = '${{ needs.performance-monitoring.outputs.production-performance }}';
+            
+            if (stagingPerf || productionPerf) {
+              body += `\n### Performance Status\n\n`;
+              if (stagingPerf) {
+                body += `**Staging Performance**: ${stagingPerf}\n`;
+              }
+              if (productionPerf) {
+                body += `**Production Performance**: ${productionPerf}\n`;
+              }
+            }
+            
+            body += `
+            ### Recommended Actions
+            
+            1. **Immediate**: Check [Cloudflare Workers dashboard](https://dash.cloudflare.com/) for any alerts or issues
+            2. **Investigate**: Review the [detailed monitoring run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for specific error messages
+            3. **Monitor**: Continue monitoring service health for recovery
+            4. **Escalate**: If issues persist, consider manual intervention or rollback
+            
+            ### Service URLs
+            
+            - **Staging**: [${{ env.STAGING_URL }}/health](${{ env.STAGING_URL }}/health)
+            - **Production**: [${{ env.PRODUCTION_URL }}/health](${{ env.PRODUCTION_URL }}/health)
+            
+            ---
+            *This issue was automatically created by the health monitoring workflow.*
+            `;
+            
+            // Determine labels based on severity
+            const labels = ['monitoring', 'health-check'];
+            if (overallStatus === 'unhealthy') {
+              labels.push('critical', 'incident');
+            } else {
+              labels.push('warning');
+            }
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: labels
+            });
+
+# ==========================================
+# Workflow Documentation
+# ==========================================
+#
+# ## Health Monitoring Overview
+#
+# This workflow provides comprehensive health monitoring for the Greptile MCP Server
+# deployed on Cloudflare Workers with three levels of monitoring:
+#
+# ### 1. Basic Health Checks
+# - HTTP response validation
+# - Response time measurement
+# - Service availability confirmation
+#
+# ### 2. Deep Health Checks (triggered on issues or manual request)
+# - API endpoint functionality testing
+# - CORS headers validation
+# - Error handling verification
+#
+# ### 3. Performance Monitoring
+# - Response time benchmarking
+# - Performance grading (excellent, good, acceptable, poor)
+# - SLA compliance tracking
+#
+# ## Monitoring Schedule
+#
+# - **Business Hours** (8 AM - 8 PM UTC, Mon-Fri): Every 15 minutes
+# - **Off Hours & Weekends**: Every hour
+# - **Post-Deployment**: Automatic trigger after deployments
+# - **Manual**: On-demand execution with customizable parameters
+#
+# ## Performance Thresholds
+#
+# - **Excellent**: < 500ms average response time
+# - **Good**: 500ms - 1000ms average response time  
+# - **Acceptable**: 1000ms - 2000ms average response time
+# - **Poor**: > 2000ms average response time
+#
+# ## Alerting
+#
+# ### Automatic Issue Creation
+# - Service unhealthy or degraded status
+# - API functionality failures
+# - Poor performance grades
+# - Customizable via workflow inputs
+#
+# ### Issue Severity Levels
+# - **🚨 Critical**: Complete service unavailability
+# - **⚠️ Warning**: Partial service degradation
+#
+# ## Manual Execution
+#
+# ```bash
+# # Basic health check for both environments
+# gh workflow run monitor-health.yml
+#
+# # Deep health check for production only
+# gh workflow run monitor-health.yml \
+#   -f environment=production \
+#   -f deep_check=true
+#
+# # Health check without creating issues
+# gh workflow run monitor-health.yml \
+#   -f create_issue=false
+# ```
+#
+# ## Service URLs
+#
+# - **Staging Health**: https://greptile-mcp-server-staging.workers.dev/health
+# - **Production Health**: https://greptile-mcp-server.workers.dev/health
+# - **Staging Info**: https://greptile-mcp-server-staging.workers.dev/mcp
+# - **Production Info**: https://greptile-mcp-server.workers.dev/mcp
+#
+# ## Integration
+#
+# This workflow integrates with:
+# - Deployment workflow (post-deployment health checks)
+# - Issue tracking (automatic issue creation)
+# - External monitoring services (extensible via additional steps)
+#
+# ==========================================

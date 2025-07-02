@@ -1,0 +1,25 @@
+# Cloudflare Workers Development Environment Variables
+# Copy this file to .dev.vars and fill in your actual values
+# These variables are used when running 'wrangler dev' locally
+
+# Required: Greptile API Configuration
+GREPTILE_API_KEY="your_greptile_api_key_here"
+GITHUB_TOKEN="your_github_personal_access_token_here"
+
+# Optional: Greptile API Configuration  
+GREPTILE_BASE_URL="https://api.greptile.com/v2"
+
+# Optional: Server Configuration
+TRANSPORT="http"
+HOST="0.0.0.0"
+PORT="8080"
+DEBUG="false"
+LOG_LEVEL="info"
+
+# Optional: CORS Configuration
+CORS_ORIGIN="*"
+
+# Note: For production deployment, use 'wrangler secret put' commands instead:
+# wrangler secret put GREPTILE_API_KEY
+# wrangler secret put GITHUB_TOKEN
+# wrangler secret put GREPTILE_BASE_URL

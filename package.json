@@ -1,0 +1,42 @@
+{
+  "name": "greptile-mcp-server",
+  "version": "1.0.0",
+  "description": "Greptile MCP Server with Cloudflare Workers support",
+  "main": "cloudflare/worker.py",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "secrets:list": "wrangler secret list",
+    "secrets:put": "wrangler secret put",
+    "publish": "wrangler deploy --env production",
+    "cf:login": "wrangler login",
+    "cf:whoami": "wrangler whoami"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "greptile",
+    "cloudflare-workers",
+    "python",
+    "ai-agents"
+  ],
+  "author": "sosacrazy126",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^4.22.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sosacrazy126/greptile-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sosacrazy126/greptile-mcp/issues"
+  },
+  "homepage": "https://github.com/sosacrazy126/greptile-mcp#readme"
+}

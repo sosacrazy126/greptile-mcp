@@ -1,0 +1,67 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "greptile-mcp-server"
+main = "src/worker.ts"
+compatibility_date = "2025-01-01"
+
+[env.production]
+name = "greptile-mcp-server"
+
+[env.staging]
+name = "greptile-mcp-server-staging"
+
+# Environment variables that will be set as secrets
+# Use 'wrangler secret put <KEY>' to set these in production
+# For local development, use .dev.vars file
+
+# Required secrets (set via wrangler secret put):
+# - GREPTILE_API_KEY
+# - GITHUB_TOKEN
+# - GREPTILE_BASE_URL (optional, defaults to https://api.greptile.com/v2)
+# 
+# OAuth secrets (set via wrangler secret put if OAuth is enabled):
+# - OAUTH_JWT_SECRET (required if OAuth enabled)
+# - OAUTH_GITHUB_CLIENT_SECRET (required for GitHub OAuth)
+# - OAUTH_GOOGLE_CLIENT_SECRET (required for Google OAuth)
+# - OAUTH_AUTH0_CLIENT_SECRET (required for Auth0 OAuth)
+
+# Optional configuration
+[vars]
+TRANSPORT = "http"
+HOST = "0.0.0.0"
+PORT = "8080"
+DEBUG = "false"
+LOG_LEVEL = "info"
+
+# OAuth Configuration (non-secret environment variables)
+OAUTH_ENABLED = "false"
+OAUTH_REQUIRE_AUTH = "false"
+OAUTH_JWT_EXPIRATION_HOURS = "24"
+OAUTH_ADMIN_USERS = ""
+OAUTH_ALLOWED_REPOSITORIES = ""
+
+# Note: Durable Objects and migrations commented out for standard library compatibility
+# [[durable_objects.bindings]]
+# name = "SESSION_MANAGER"
+# class_name = "SessionManager"
+
+# [[migrations]]
+# tag = "v1"
+# new_classes = ["SessionManager"]
+
+# Enable CORS for MCP clients
+[env.production.vars]
+CORS_ORIGIN = "*"
+# OAuth Production Configuration
+OAUTH_ENABLED = "true"
+OAUTH_REQUIRE_AUTH = "false"
+
+[env.staging.vars]
+CORS_ORIGIN = "*"
+# OAuth Staging Configuration
+OAUTH_ENABLED = "true"
+OAUTH_REQUIRE_AUTH = "false"
+
+# Routes for custom domains (optional)
+# [[routes]]
+# pattern = "mcp.yourdomain.com/*"
+# zone_name = "yourdomain.com"

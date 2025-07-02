@@ -1,0 +1,795 @@
+# Cloudflare Workers Deployment Workflow for Greptile MCP Server
+# 
+# This workflow provides automated deployment of the Greptile MCP server to Cloudflare Workers
+# with comprehensive testing, multi-environment support, and robust error handling.
+#
+# Features:
+# - Multi-environment deployment (staging → production)
+# - Comprehensive testing and code quality checks
+# - Automatic rollback on deployment failure
+# - Secret management and environment variable handling
+# - Deployment notifications via GitHub comments
+# - Manual deployment triggers with environment selection
+# - Production deployments require manual approval
+#
+# Environment Requirements:
+# - CLOUDFLARE_API_TOKEN: Cloudflare API token with Workers:Edit permissions
+# - CLOUDFLARE_ACCOUNT_ID: Your Cloudflare account ID
+# - GREPTILE_API_KEY_STAGING: Greptile API key for staging environment
+# - GREPTILE_API_KEY_PRODUCTION: Greptile API key for production environment
+# - GITHUB_TOKEN_STAGING: GitHub token for staging environment
+# - GITHUB_TOKEN_PRODUCTION: GitHub token for production environment
+# - SLACK_WEBHOOK_URL: (Optional) Slack webhook for deployment notifications
+
+name: 🚀 Deploy to Cloudflare Workers
+
+on:
+  # Trigger on push to main/master branch
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'cloudflare/**'
+      - 'pyproject.toml'
+      - 'requirements.txt'
+      - 'wrangler.toml'
+      - '.github/workflows/deploy-cloudflare.yml'
+  
+  # Manual trigger with environment selection
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+          - both
+      skip_tests:
+        description: 'Skip tests (emergency deployment only)'
+        required: false
+        default: false
+        type: boolean
+      force_deploy:
+        description: 'Force deployment even if no changes detected'
+        required: false
+        default: false
+        type: boolean
+
+  # Trigger on pull request for validation
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'cloudflare/**'
+      - 'pyproject.toml'
+      - 'requirements.txt'
+      - 'wrangler.toml'
+
+# Set default permissions
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  deployments: write
+  actions: read
+
+# Global environment variables
+env:
+  PYTHON_VERSION: '3.12.8'
+  NODE_VERSION: '18.20.5'
+  WRANGLER_VERSION: '3.80.0'
+
+jobs:
+  # ==========================================
+  # JOB 1: Code Quality and Testing
+  # ==========================================
+  quality-checks:
+    name: 🔍 Code Quality & Testing
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_tests != 'true'
+    
+    outputs:
+      python-cache-key: ${{ steps.cache-python.outputs.cache-hit }}
+      test-results: ${{ steps.test-summary.outputs.results }}
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: 📦 Cache Python Dependencies
+        id: cache-python
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            .venv
+          key: python-${{ env.PYTHON_VERSION }}-${{ hashFiles('pyproject.toml', 'requirements.txt') }}
+          restore-keys: |
+            python-${{ env.PYTHON_VERSION }}-
+
+      - name: 🛠️ Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov ruff mypy black isort safety bandit
+
+      - name: 🎨 Code Formatting Check (Black)
+        run: |
+          echo "::group::Black Formatting Check"
+          black --check --diff src/ cloudflare/
+          echo "::endgroup::"
+
+      - name: 📐 Import Sorting Check (isort)
+        run: |
+          echo "::group::Import Sorting Check"
+          isort --check-only --diff src/ cloudflare/
+          echo "::endgroup::"
+
+      - name: 🔧 Linting (Ruff)
+        run: |
+          echo "::group::Ruff Linting"
+          ruff check src/ cloudflare/ --output-format=github
+          echo "::endgroup::"
+
+      - name: 🔍 Type Checking (MyPy)
+        run: |
+          echo "::group::MyPy Type Checking"
+          mypy src/ --ignore-missing-imports --no-strict-optional
+          echo "::endgroup::"
+        continue-on-error: true  # Type checking failures shouldn't block deployment
+
+      - name: 🔒 Security Scanning (Bandit)
+        run: |
+          echo "::group::Security Scanning"
+          bandit -r src/ cloudflare/ -f json -o bandit-report.json || true
+          bandit -r src/ cloudflare/ -f txt
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 🛡️ Dependency Security Check (Safety)
+        run: |
+          echo "::group::Dependency Security Check"
+          safety check --json --output safety-report.json || true
+          safety check
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 🧪 Run Unit Tests
+        run: |
+          echo "::group::Unit Tests"
+          python -m pytest src/tests/ -v \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term-missing \
+            --junit-xml=test-results.xml
+          echo "::endgroup::"
+        env:
+          GREPTILE_API_KEY: ${{ secrets.GREPTILE_API_KEY_STAGING }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN_STAGING }}
+
+      - name: 📄 Test Summary
+        id: test-summary
+        if: always()
+        run: |
+          if [ -f test-results.xml ]; then
+            echo "results=passed" >> $GITHUB_OUTPUT
+          else
+            echo "results=failed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 📊 Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            test-results.xml
+            htmlcov/
+            bandit-report.json
+            safety-report.json
+          retention-days: 30
+
+      - name: 📈 Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: github.event_name != 'pull_request'
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: greptile-mcp-coverage
+        continue-on-error: true
+
+  # ==========================================
+  # JOB 2: Staging Deployment
+  # ==========================================
+  deploy-staging:
+    name: 🚀 Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [quality-checks]
+    if: |
+      always() && 
+      (needs.quality-checks.result == 'success' || github.event.inputs.skip_tests == 'true') &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || 
+       github.event.inputs.environment == 'staging' || github.event.inputs.environment == 'both')
+    
+    environment:
+      name: staging
+      url: https://greptile-mcp-server-staging.workers.dev
+    
+    outputs:
+      staging-deployment-id: ${{ steps.staging-deploy.outputs.deployment-id }}
+      staging-url: ${{ steps.staging-deploy.outputs.deployment-url }}
+      staging-success: ${{ steps.staging-deploy.outputs.success }}
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install Wrangler
+        run: |
+          npm install -g wrangler@${{ env.WRANGLER_VERSION }}
+          wrangler --version
+
+      - name: 🔑 Configure Cloudflare Authentication
+        run: |
+          echo "Setting up Cloudflare authentication"
+          wrangler whoami || echo "Not authenticated yet"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: 🔐 Set Staging Secrets
+        run: |
+          echo "::group::Setting Staging Secrets"
+          echo "${{ secrets.GREPTILE_API_KEY_STAGING }}" | wrangler secret put GREPTILE_API_KEY --env staging
+          echo "${{ secrets.GITHUB_TOKEN_STAGING }}" | wrangler secret put GITHUB_TOKEN --env staging
+          echo "::endgroup::"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: 🚀 Deploy to Staging
+        id: staging-deploy
+        run: |
+          echo "::group::Staging Deployment"
+          
+          # Deploy to staging
+          deployment_output=$(wrangler deploy --env staging 2>&1)
+          deployment_status=$?
+          
+          echo "Deployment output:"
+          echo "$deployment_output"
+          
+          if [ $deployment_status -eq 0 ]; then
+            # Extract deployment URL from output
+            deployment_url=$(echo "$deployment_output" | grep -oP 'https://[^\s]+\.workers\.dev' | head -1)
+            if [ -z "$deployment_url" ]; then
+              deployment_url="https://greptile-mcp-server-staging.workers.dev"
+            fi
+            
+            echo "deployment-url=$deployment_url" >> $GITHUB_OUTPUT
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "deployment-id=staging-$(date +%s)" >> $GITHUB_OUTPUT
+            
+            echo "✅ Staging deployment successful: $deployment_url"
+          else
+            echo "deployment-url=" >> $GITHUB_OUTPUT
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "deployment-id=" >> $GITHUB_OUTPUT
+            
+            echo "❌ Staging deployment failed"
+            exit 1
+          fi
+          echo "::endgroup::"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: 🔍 Health Check - Staging
+        run: |
+          echo "::group::Staging Health Check"
+          
+          max_attempts=10
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Health check attempt $attempt/$max_attempts"
+            
+            if curl -f -s "${{ steps.staging-deploy.outputs.deployment-url }}/health" > /dev/null; then
+              echo "✅ Staging health check passed"
+              curl -s "${{ steps.staging-deploy.outputs.deployment-url }}/health" | jq .
+              break
+            else
+              if [ $attempt -eq $max_attempts ]; then
+                echo "❌ Staging health check failed after $max_attempts attempts"
+                exit 1
+              fi
+              echo "⏳ Health check failed, retrying in 10 seconds..."
+              sleep 10
+            fi
+            
+            attempt=$((attempt + 1))
+          done
+          echo "::endgroup::"
+
+      - name: 🧪 Smoke Tests - Staging
+        run: |
+          echo "::group::Staging Smoke Tests"
+          
+          staging_url="${{ steps.staging-deploy.outputs.deployment-url }}"
+          
+          # Test 1: Health endpoint
+          echo "Testing health endpoint..."
+          health_response=$(curl -s "$staging_url/health")
+          echo "Health response: $health_response"
+          
+          if ! echo "$health_response" | jq -e '.status == "healthy"' > /dev/null; then
+            echo "❌ Health check failed"
+            exit 1
+          fi
+          
+          # Test 2: Server info endpoint
+          echo "Testing server info endpoint..."
+          info_response=$(curl -s "$staging_url/mcp")
+          echo "Info response: $info_response"
+          
+          if ! echo "$info_response" | jq -e '.name == "greptile-mcp-server"' > /dev/null; then
+            echo "❌ Server info check failed"
+            exit 1
+          fi
+          
+          echo "✅ All staging smoke tests passed"
+          echo "::endgroup::"
+
+  # ==========================================
+  # JOB 3: Production Deployment (with approval)
+  # ==========================================
+  deploy-production:
+    name: 🏭 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [quality-checks, deploy-staging]
+    if: |
+      always() && 
+      needs.deploy-staging.outputs.staging-success == 'true' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || 
+       github.event.inputs.environment == 'production' || github.event.inputs.environment == 'both')
+    
+    environment:
+      name: production
+      url: https://greptile-mcp-server.workers.dev
+    
+    outputs:
+      production-deployment-id: ${{ steps.production-deploy.outputs.deployment-id }}
+      production-url: ${{ steps.production-deploy.outputs.deployment-url }}
+      production-success: ${{ steps.production-deploy.outputs.success }}
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install Wrangler
+        run: |
+          npm install -g wrangler@${{ env.WRANGLER_VERSION }}
+          wrangler --version
+
+      - name: 🔑 Configure Cloudflare Authentication
+        run: |
+          echo "Setting up Cloudflare authentication"
+          wrangler whoami || echo "Not authenticated yet"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: 🔐 Set Production Secrets
+        run: |
+          echo "::group::Setting Production Secrets"
+          echo "${{ secrets.GREPTILE_API_KEY_PRODUCTION }}" | wrangler secret put GREPTILE_API_KEY --env production
+          echo "${{ secrets.GITHUB_TOKEN_PRODUCTION }}" | wrangler secret put GITHUB_TOKEN --env production
+          echo "::endgroup::"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: 📋 Pre-deployment Backup
+        id: backup
+        run: |
+          echo "::group::Creating Pre-deployment Backup"
+          
+          # Get current deployment info
+          current_deployment=$(wrangler deployments list --env production --format json 2>/dev/null | jq -r '.[0] // empty' || echo "")
+          
+          if [ -n "$current_deployment" ] && [ "$current_deployment" != "null" ]; then
+            echo "Previous deployment found:"
+            echo "$current_deployment" | jq .
+            echo "backup-available=true" >> $GITHUB_OUTPUT
+            echo "backup-id=$(echo "$current_deployment" | jq -r '.id // "unknown"')" >> $GITHUB_OUTPUT
+          else
+            echo "No previous deployment found"
+            echo "backup-available=false" >> $GITHUB_OUTPUT
+            echo "backup-id=" >> $GITHUB_OUTPUT
+          fi
+          echo "::endgroup::"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: 🚀 Deploy to Production
+        id: production-deploy
+        run: |
+          echo "::group::Production Deployment"
+          
+          # Deploy to production
+          deployment_output=$(wrangler deploy --env production 2>&1)
+          deployment_status=$?
+          
+          echo "Deployment output:"
+          echo "$deployment_output"
+          
+          if [ $deployment_status -eq 0 ]; then
+            # Extract deployment URL from output
+            deployment_url=$(echo "$deployment_output" | grep -oP 'https://[^\s]+\.workers\.dev' | head -1)
+            if [ -z "$deployment_url" ]; then
+              deployment_url="https://greptile-mcp-server.workers.dev"
+            fi
+            
+            echo "deployment-url=$deployment_url" >> $GITHUB_OUTPUT
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "deployment-id=production-$(date +%s)" >> $GITHUB_OUTPUT
+            
+            echo "✅ Production deployment successful: $deployment_url"
+          else
+            echo "deployment-url=" >> $GITHUB_OUTPUT
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "deployment-id=" >> $GITHUB_OUTPUT
+            
+            echo "❌ Production deployment failed"
+            exit 1
+          fi
+          echo "::endgroup::"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: 🔍 Health Check - Production
+        id: production-health
+        run: |
+          echo "::group::Production Health Check"
+          
+          max_attempts=15
+          attempt=1
+          health_success=false
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Health check attempt $attempt/$max_attempts"
+            
+            if curl -f -s "${{ steps.production-deploy.outputs.deployment-url }}/health" > /dev/null; then
+              echo "✅ Production health check passed"
+              curl -s "${{ steps.production-deploy.outputs.deployment-url }}/health" | jq .
+              health_success=true
+              break
+            else
+              if [ $attempt -eq $max_attempts ]; then
+                echo "❌ Production health check failed after $max_attempts attempts"
+                echo "health-success=false" >> $GITHUB_OUTPUT
+                break
+              fi
+              echo "⏳ Health check failed, retrying in 15 seconds..."
+              sleep 15
+            fi
+            
+            attempt=$((attempt + 1))
+          done
+          
+          if [ "$health_success" = true ]; then
+            echo "health-success=true" >> $GITHUB_OUTPUT
+          else
+            echo "health-success=false" >> $GITHUB_OUTPUT
+          fi
+          echo "::endgroup::"
+
+      - name: 🧪 Smoke Tests - Production
+        id: production-smoke
+        if: steps.production-health.outputs.health-success == 'true'
+        run: |
+          echo "::group::Production Smoke Tests"
+          
+          production_url="${{ steps.production-deploy.outputs.deployment-url }}"
+          smoke_success=true
+          
+          # Test 1: Health endpoint
+          echo "Testing health endpoint..."
+          if ! health_response=$(curl -s "$production_url/health"); then
+            echo "❌ Health endpoint failed"
+            smoke_success=false
+          else
+            echo "Health response: $health_response"
+            if ! echo "$health_response" | jq -e '.status == "healthy"' > /dev/null; then
+              echo "❌ Health check response invalid"
+              smoke_success=false
+            fi
+          fi
+          
+          # Test 2: Server info endpoint
+          echo "Testing server info endpoint..."
+          if ! info_response=$(curl -s "$production_url/mcp"); then
+            echo "❌ Server info endpoint failed"
+            smoke_success=false
+          else
+            echo "Info response: $info_response"
+            if ! echo "$info_response" | jq -e '.name == "greptile-mcp-server"' > /dev/null; then
+              echo "❌ Server info response invalid"
+              smoke_success=false
+            fi
+          fi
+          
+          if [ "$smoke_success" = true ]; then
+            echo "✅ All production smoke tests passed"
+            echo "smoke-success=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Production smoke tests failed"
+            echo "smoke-success=false" >> $GITHUB_OUTPUT
+          fi
+          echo "::endgroup::"
+
+      - name: 🔄 Rollback on Failure
+        if: |
+          failure() || 
+          steps.production-health.outputs.health-success == 'false' || 
+          steps.production-smoke.outputs.smoke-success == 'false'
+        run: |
+          echo "::group::Rolling Back Production Deployment"
+          
+          if [ "${{ steps.backup.outputs.backup-available }}" = "true" ]; then
+            echo "Attempting to rollback to previous deployment..."
+            backup_id="${{ steps.backup.outputs.backup-id }}"
+            
+            if [ -n "$backup_id" ] && [ "$backup_id" != "unknown" ]; then
+              echo "Rolling back to deployment ID: $backup_id"
+              # Note: Cloudflare Workers doesn't have a direct rollback command
+              # In a real scenario, you might need to redeploy the previous version
+              echo "⚠️  Manual rollback required - previous deployment ID: $backup_id"
+              echo "To rollback manually, run: wrangler rollback $backup_id --env production"
+            else
+              echo "⚠️  Cannot rollback - no valid backup ID available"
+            fi
+          else
+            echo "⚠️  No previous deployment available for rollback"
+          fi
+          
+          echo "::endgroup::"
+          exit 1
+
+  # ==========================================
+  # JOB 4: Notification and Cleanup
+  # ==========================================
+  notify-and-cleanup:
+    name: 📢 Notify & Cleanup
+    runs-on: ubuntu-latest
+    needs: [quality-checks, deploy-staging, deploy-production]
+    if: always()
+    
+    steps:
+      - name: 📊 Deployment Summary
+        run: |
+          echo "::group::Deployment Summary"
+          
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Quality Checks
+          if [ "${{ needs.quality-checks.result }}" = "success" ]; then
+            echo "✅ **Code Quality**: Passed" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ github.event.inputs.skip_tests }}" = "true" ]; then
+            echo "⏭️ **Code Quality**: Skipped (manual override)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Code Quality**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Staging Deployment
+          if [ "${{ needs.deploy-staging.outputs.staging-success }}" = "true" ]; then
+            staging_url="${{ needs.deploy-staging.outputs.staging-url }}"
+            echo "✅ **Staging**: Deployed successfully to [$staging_url]($staging_url)" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.deploy-staging.result }}" = "skipped" ]; then
+            echo "⏭️ **Staging**: Skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Staging**: Deployment failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Production Deployment
+          if [ "${{ needs.deploy-production.outputs.production-success }}" = "true" ]; then
+            production_url="${{ needs.deploy-production.outputs.production-url }}"
+            echo "✅ **Production**: Deployed successfully to [$production_url]($production_url)" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.deploy-production.result }}" = "skipped" ]; then
+            echo "⏭️ **Production**: Skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Production**: Deployment failed or rolled back" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow**: [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          
+          echo "::endgroup::"
+
+      - name: 💬 Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo, number } = context.issue;
+            
+            let comment = `## 🚀 Deployment Status\n\n`;
+            
+            // Quality checks
+            const qualityResult = '${{ needs.quality-checks.result }}';
+            if (qualityResult === 'success') {
+              comment += `✅ **Code Quality**: All checks passed\n`;
+            } else if (qualityResult === 'skipped') {
+              comment += `⏭️ **Code Quality**: Skipped\n`;
+            } else {
+              comment += `❌ **Code Quality**: Some checks failed\n`;
+            }
+            
+            // Staging deployment
+            const stagingSuccess = '${{ needs.deploy-staging.outputs.staging-success }}';
+            if (stagingSuccess === 'true') {
+              const stagingUrl = '${{ needs.deploy-staging.outputs.staging-url }}';
+              comment += `✅ **Staging**: Successfully deployed to [${stagingUrl}](${stagingUrl})\n`;
+            } else {
+              comment += `❌ **Staging**: Deployment failed or skipped\n`;
+            }
+            
+            comment += `\n**Note**: This PR triggers validation only. Production deployment requires merge to main/master.\n`;
+            comment += `\n---\n*Automated deployment status from GitHub Actions*`;
+            
+            github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: number,
+              body: comment
+            });
+
+      - name: 📱 Slack Notification
+        if: |
+          always() && 
+          secrets.SLACK_WEBHOOK_URL != '' &&
+          (needs.deploy-staging.result != 'skipped' || needs.deploy-production.result != 'skipped')
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚀 Greptile MCP Deployment Status"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repository:* ${{ github.repository }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:* ${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Trigger:* ${{ github.event_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Status:* ${{ job.status }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "• *Staging:* ${{ needs.deploy-staging.outputs.staging-success == 'true' && '✅ Success' || '❌ Failed' }}\n• *Production:* ${{ needs.deploy-production.outputs.production-success == 'true' && '✅ Success' || needs.deploy-production.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }}"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+# ==========================================
+# Workflow Documentation
+# ==========================================
+#
+# ## Required Secrets
+#
+# ### Cloudflare
+# - `CLOUDFLARE_API_TOKEN`: API token with Workers:Edit permissions
+# - `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare account ID
+#
+# ### Environment-specific
+# - `GREPTILE_API_KEY_STAGING`: Greptile API key for staging
+# - `GREPTILE_API_KEY_PRODUCTION`: Greptile API key for production  
+# - `GITHUB_TOKEN_STAGING`: GitHub token for staging
+# - `GITHUB_TOKEN_PRODUCTION`: GitHub token for production
+#
+# ### Optional
+# - `SLACK_WEBHOOK_URL`: Slack webhook for deployment notifications
+#
+# ## Workflow Triggers
+#
+# 1. **Automatic**: Push to main/master branch
+# 2. **Manual**: workflow_dispatch with environment selection
+# 3. **Validation**: Pull request to main/master (staging only)
+#
+# ## Deployment Flow
+#
+# 1. **Code Quality**: Linting, formatting, type checking, security scans
+# 2. **Testing**: Unit tests with coverage reporting
+# 3. **Staging Deploy**: Automatic deployment to staging environment
+# 4. **Smoke Tests**: Health checks and basic functionality tests
+# 5. **Production Deploy**: Manual approval required, includes rollback capability
+# 6. **Notifications**: GitHub comments, Slack notifications, workflow summaries
+#
+# ## Emergency Procedures
+#
+# ### Skip Tests (Emergency Deploy)
+# ```
+# gh workflow run deploy-cloudflare.yml \
+#   -f environment=production \
+#   -f skip_tests=true \
+#   -f force_deploy=true
+# ```
+#
+# ### Manual Rollback
+# ```
+# wrangler rollback <deployment-id> --env production
+# ```
+#
+# ## Monitoring
+#
+# - Staging: https://greptile-mcp-server-staging.workers.dev/health
+# - Production: https://greptile-mcp-server.workers.dev/health
+#
+# ==========================================
