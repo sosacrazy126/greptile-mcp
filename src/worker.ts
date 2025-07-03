@@ -266,16 +266,27 @@ export default {
 
     // Health check endpoint
     if (path === '/' || path === '/health') {
+      let status = 'healthy';
+      const missingEnv: string[] = [];
+      if (!env.GREPTILE_API_KEY) missingEnv.push('GREPTILE_API_KEY');
+      if (!env.GITHUB_TOKEN) missingEnv.push('GITHUB_TOKEN');
+
+      if (missingEnv.length > 0) {
+        status = 'degraded';
+      }
+
       const healthData = {
-        status: 'healthy',
+        status,
         service: 'greptile-mcp-server',
         version: '1.0.0',
         deployment: 'cloudflare-workers',
         runtime: 'typescript',
+        missingEnv: missingEnv.length ? missingEnv : undefined,
+        timestamp: new Date().toISOString(),
       };
 
       return new Response(JSON.stringify(healthData), {
-        status: 200,
+        status: status === 'healthy' ? 200 : 500,
         headers: createCORSHeaders(),
       });
     }
