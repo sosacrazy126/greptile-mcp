@@ -1,25 +1,4 @@
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/sosacrazy126-greptile-mcp-badge.png)](https://mseep.ai/app/sosacrazy126-greptile-mcp)
-
-# Greptile MCP Server [COMPLETED]
-
-**Quick Run Command Cheatsheet**
-
-**✅ PROJECT STATUS: ALL TASKS COMPLETED (11/11)**
-
-Please see [PROJECT_COMPLETION.md](./PROJECT_COMPLETION.md) for a summary of completed work and [USER_GUIDE.md](./USER_GUIDE.md) for usage instructions.
-
-| Environment   | Setup & Install                                                       | Run Command                                   |
-| ------------- | --------------------------------------------------------------------- | --------------------------------------------- |
-| **Local (Python)** | `python -m venv .venv && source .venv/bin/activate && pip install -e .` | `python -m src.main`                          |
-| **Docker**        | `docker build -t greptile-mcp .`                                      | `docker run --rm --env-file .env -p 8050:8050 greptile-mcp` |
-| **Smithery**      | `npm install -g smithery`                                             | `smithery deploy` (see smithery.yaml)         |
-
-> Fill in `.env` using `.env.example` and set your `GREPTILE_API_KEY` and `GITHUB_TOKEN` before running.
-
-For full prerequisites, advanced agent usage, integration, and troubleshooting:
-**See the [full documentation in `docs/README.md`](docs/README.md) and agent details in [AGENT_USAGE.md](./AGENT_USAGE.md).**
-
----
+# Greptile MCP Server
 
 An MCP (Model Context Protocol) server implementation that integrates with the Greptile API to provide code search and querying capabilities to AI agents.
 
@@ -97,9 +76,7 @@ To deploy using Smithery:
 2. Deploy the server: `smithery deploy`
 3. Configure your Smithery client with the required API keys
 
-### Additional Documentation
 
-For detailed usage instructions for AI agents, see the [Agent Usage Guide](./AGENT_USAGE.md).
 
 ## Prerequisites
 
@@ -117,7 +94,7 @@ For detailed usage instructions for AI agents, see the [Agent Usage Guide](./AGE
 
 ## Installation
 
-### Using pip (for development or local testing)
+### Using pip
 
 1. Clone this repository:
    ```bash
@@ -125,7 +102,7 @@ For detailed usage instructions for AI agents, see the [Agent Usage Guide](./AGE
    cd greptile-mcp
    ```
 
-2. Create a virtual environment (recommended):
+2. Create a virtual environment:
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # On Windows use `.venv\Scripts\activate`
@@ -133,21 +110,16 @@ For detailed usage instructions for AI agents, see the [Agent Usage Guide](./AGE
 
 3. Install dependencies:
    ```bash
-   pip install -e .
+   pip install -r requirements.txt
    ```
 
-4. Create a `.env` file based on `.env.example`:
+4. Set your environment variables:
    ```bash
-   cp .env.example .env
+   export GREPTILE_API_KEY=your_api_key_here
+   export GITHUB_TOKEN=your_github_token_here
    ```
 
-5. Configure your environment variables in the `.env` file:
-   ```
-   GREPTILE_API_KEY=your_api_key_here
-   GITHUB_TOKEN=your_github_token_here
-   ```
-
-### Using Docker (Recommended for deployment)
+### Using Docker
 
 1. Clone the repository:
    ```bash
@@ -155,9 +127,7 @@ For detailed usage instructions for AI agents, see the [Agent Usage Guide](./AGE
    cd greptile-mcp
    ```
 
-2. Create a `.env` file based on `.env.example` and configure your environment variables.
-
-3. Build the Docker image:
+2. Build the Docker image:
    ```bash
    docker build -t greptile-mcp .
    ```
@@ -166,51 +136,19 @@ For detailed usage instructions for AI agents, see the [Agent Usage Guide](./AGE
 
 ### Using pip
 
-#### SSE Transport (Default)
-
-  Ensure `TRANSPORT=sse` and `PORT=8050` (or your chosen port) are set in your `.env` file.
-
-  ```bash
-  python -m src.main
-  ```
-
-  The server will listen on `http://<HOST>:<PORT>/sse`.
-
-#### Stdio Transport
-
-Set `TRANSPORT=stdio` in your `.env` file. With stdio, the MCP client typically spins up
- the MCP server process.
-
 ```bash
-# Usually invoked by an MCP client, not directly
-TRANSPORT=stdio python -m src.main
+python -m src.main
 ```
 
 ### Using Docker
 
-#### SSE Transport (Default)
-
-  ```bash
-  # Mounts the .env file for configuration and maps the port
-  docker run --rm --env-file .env -p 8050:8050 greptile-mcp
-  ```
-
-  The server will listen on `http://localhost:8050/sse` (or the host IP if not localhost).
-
-#### Stdio Transport
-
-  Configure your MCP client to run the Docker container with `TRANSPORT=stdio`.
-
 ```bash
-# Example of running with stdio transport
-docker run --rm -i --env-file .env -e TRANSPORT=stdio greptile-mcp
+docker run --rm -e GREPTILE_API_KEY=your_key -e GITHUB_TOKEN=your_token -p 8050:8050 greptile-mcp
 ```
 
 ## Integration with MCP Clients
 
-### SSE Configuration Example
-
-Add this to your MCP client's configuration (e.g., `mcp_config.json`):
+Configure your MCP client to connect to the server:
 
 ```json
 {
@@ -218,54 +156,6 @@ Add this to your MCP client's configuration (e.g., `mcp_config.json`):
     "greptile": {
       "transport": "sse",
       "url": "http://localhost:8050/sse"
-    }
-  }
-}
-```
-
-### Python with Stdio Configuration Example
-
-Ensure `TRANSPORT=stdio` is set in the environment where the command runs:
-
-```json
-{
-  "mcpServers": {
-    "greptile": {
-      "transport": "stdio",
-      "command": "/path/to/your/greptile-mcp/.venv/bin/python",
-      "args": ["-m", "src.main"],
-      "env": {
-        "TRANSPORT": "stdio",
-        "GREPTILE_API_KEY": "YOUR-GREPTILE-API-KEY",
-        "GITHUB_TOKEN": "YOUR-GITHUB-TOKEN",
-        "GREPTILE_BASE_URL": "https://api.greptile.com/v2"
-      }
-    }
-  }
-}
-```
-
-### Docker with Stdio Configuration Example
-
-```json
-{
-  "mcpServers": {
-    "greptile": {
-      "transport": "stdio",
-      "command": "docker",
-      "args": [
-        "run", "--rm", "-i",
-        "-e", "TRANSPORT=stdio",
-        "-e", "GREPTILE_API_KEY",
-        "-e", "GITHUB_TOKEN",
-        "-e", "GREPTILE_BASE_URL",
-        "greptile-mcp"
-      ],
-      "env": {
-        "GREPTILE_API_KEY": "YOUR-GREPTILE-API-KEY",
-        "GITHUB_TOKEN": "YOUR-GITHUB-TOKEN",
-        "GREPTILE_BASE_URL": "https://api.greptile.com/v2"
-      }
     }
   }
 }
@@ -496,323 +386,21 @@ Gets information about a specific repository that has been indexed.
 }
 ```
 
-## Integration Examples
 
-### 1. Integration with Claude.ai via Anthropic API
 
-```python
-from anthropic import Anthropic
-import json
-import requests
-
-# Set up Anthropic client
-anthropic = Anthropic(api_key="your_anthropic_key")
-
-# Function to call Greptile MCP
-def query_code(question, repositories):
-    response = requests.post(
-        "http://localhost:8050/tools/greptile/query_repository",
-        json={
-            "query": question,
-            "repositories": repositories,
-            "genius": True
-        }
-    )
-    return json.loads(response.text)
-
-# Ask Claude with enhanced code context
-def ask_claude_with_code_context(question, repositories):
-    # Get code context from Greptile
-    code_context = query_code(question, repositories)
-    
-    # Format the context for Claude
-    formatted_context = f"Code Analysis Result:\n{code_context['message']}\n\nRelevant Files:\n"
-    for source in code_context.get('sources', []):
-        formatted_context += f"- {source['filepath']} (lines {source['linestart']}-{source['lineend']})\n"
-    
-    # Send to Claude with context
-    message = anthropic.messages.create(
-        model="claude-3-opus-20240229",
-        max_tokens=1000,
-        messages=[
-            {"role": "user", "content": f"Based on this code context:\n\n{formatted_context}\n\nQuestion: {question}"}
-        ]
-    )
-    
-    return message.content
-
-# Example usage
-answer = ask_claude_with_code_context(
-    "How does the authentication system work?",
-    [{"remote": "github", "repository": "greptileai/greptile", "branch": "main"}]
-)
-print(answer)
-```
-
-### 2. Integration with an LLM-based Chatbot
-
-```python
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-import httpx
-import json
-
-app = FastAPI()
-
-# Greptile MCP endpoint
-GREPTILE_MCP_URL = "http://localhost:8050/tools/greptile"
-
-@app.post("/chat")
-async def chat_endpoint(request: Request):
-    data = await request.json()
-    user_message = data.get("message", "")
-    
-    # Check if this is a code-related question
-    if "code" in user_message or "repository" in user_message or "function" in user_message:
-        # Query the repository through Greptile MCP
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{GREPTILE_MCP_URL}/query_repository",
-                json={
-                    "query": user_message,
-                    "repositories": [
-                        {"remote": "github", "repository": "your-org/your-repo", "branch": "main"}
-                    ],
-                    "genius": True
-                }
-            )
-            
-            greptile_result = response.json()
-            
-            # Process the result and return to the user
-            answer = greptile_result.get("message", "")
-            sources = greptile_result.get("sources", [])
-            
-            return JSONResponse({
-                "message": answer,
-                "code_references": sources
-            })
-    
-    # For non-code questions, use your regular LLM
-    return JSONResponse({
-        "message": "This appears to be a general question. I'll handle it normally."
-    })
-
-# Run with: uvicorn app:app --reload
-```
-
-### 3. Command-line Code Querying Tool
-
-```python
-#!/usr/bin/env python3
-import argparse
-import json
-import requests
-import sys
-
-def main():
-    parser = argparse.ArgumentParser(description="Query code repositories using natural language")
-    parser.add_argument("query", help="The natural language query about the code")
-    parser.add_argument("--repo", "-r", required=True, help="Repository in format github:owner/repo:branch")
-    parser.add_argument("--genius", "-g", action="store_true", help="Use enhanced query capabilities")
-    args = parser.parse_args()
-    
-    # Parse the repository string
-    try:
-        remote, repo_path = args.repo.split(":", 1)
-        if ":" in repo_path:
-            repo, branch = repo_path.split(":", 1)
-        else:
-            repo = repo_path
-            branch = "main"
-    except ValueError:
-        print("Error: Repository must be in format 'github:owner/repo:branch' or 'github:owner/repo'")
-        sys.exit(1)
-        
-    # Prepare the request
-    payload = {
-        "query": args.query,
-        "repositories": [
-            {
-                "remote": remote,
-                "repository": repo,
-                "branch": branch
-            }
-        ],
-        "genius": args.genius
-    }
-    
-    # Make the request
-    try:
-        response = requests.post(
-            "http://localhost:8050/tools/greptile/query_repository",
-            json=payload
-        )
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        print(f"Error: {e}")
-        sys.exit(1)
-    
-    # Process the response
-    result = response.json()
-    
-    # Display the answer
-    print("\n=== ANSWER ===\n")
-    print(result.get("message", "No answer found"))
-    
-    # Display the sources
-    sources = result.get("sources", [])
-    if sources:
-        print("\n=== CODE REFERENCES ===\n")
-        for i, source in enumerate(sources, 1):
-            print(f"{i}. {source['filepath']} (lines {source.get('linestart', '?')}-{source.get('lineend', '?')})")
-            print(f"   Repository: {source['repository']} ({source['branch']})")
-            if 'summary' in source:
-                print(f"   Summary: {source['summary']}")
-            print()
-
-if __name__ == "__main__":
-    main()
-```
-
-## Troubleshooting
-
-### Common Issues
-
-#### 1. Authentication Failures
-
-**Symptom**: You receive `401 Unauthorized` or `Repository not found with configured credentials` errors.
-
-**Solutions**:
-- Verify your Greptile API key is valid and correctly set in the `.env` file
-- Check if your GitHub/GitLab token has expired (they typically expire after a set period)
-- Ensure your GitHub/GitLab token has the `repo` scope for accessing repositories
-- Test your GitHub token directly with the GitHub API to verify it's working
-
-**Testing GitHub Token**:
-```bash
-curl -H "Authorization: token YOUR_GITHUB_TOKEN" https://api.github.com/user
-```
-
-#### 2. Repository Not Found
-
-**Symptom**: The API returns a 404 error or "Repository not found" message.
-
-**Solutions**:
-- Verify the repository exists and is accessible with your GitHub/GitLab token
-- Double-check the repository format (it should be `owner/repo`)
-- For private repositories, ensure your token has appropriate access permissions
-- Verify the branch name is correct
-
-#### 3. Connection Issues
-
-**Symptom**: Unable to connect to the MCP server.
-
-**Solutions**:
-- Check if the server is running (`ps aux | grep src.main`)
-- Verify the port is not being used by another application
-- Check network settings and firewall configurations
-- Try a different port by changing the `PORT` value in your `.env` file
-
-#### 4. Docker Issues
-
-**Symptom**: Docker container fails to start or operate correctly.
-
-**Solutions**:
-- Check Docker logs: `docker logs <container_id>`
-- Verify the `.env` file is correctly mounted
-- Ensure the port mapping is correct in your `docker run` command
-- Check if the Docker network configuration allows required connections
-
-### Logs and Debugging
-
-To enable more verbose logging, set the following environment variables:
-
-```bash
-# Add to your .env file
-DEBUG=true
-LOG_LEVEL=debug
-```
-
-For troubleshooting specific MCP interactions, examine the MCP server logs:
-
-```bash
-# Run with enhanced logging
-LOG_LEVEL=debug python -m src.main
-```
-
-## Advanced Configuration
-
-### Environment Variables
+## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `TRANSPORT` | Transport method (`sse` or `stdio`) | `sse` |
-| `HOST` | Host to bind to for SSE transport | `0.0.0.0` |
-| `PORT` | Port for SSE transport | `8050` |
 | `GREPTILE_API_KEY` | Your Greptile API key | (required) |
 | `GITHUB_TOKEN` | GitHub/GitLab personal access token | (required) |
-| `GREPTILE_BASE_URL` | Greptile API base URL | `https://api.greptile.com/v2` |
-| `DEBUG` | Enable debug mode | `false` |
-| `LOG_LEVEL` | Logging level | `info` |
-
-### Custom API Endpoints
-
-If you need to use a custom Greptile API endpoint (e.g., for enterprise installations), modify the `GREPTILE_BASE_URL` environment variable:
-
-```
-GREPTILE_BASE_URL=https://greptile.your-company.com/api/v2
-```
-
-### Performance Tuning
-
-For production deployments, consider these performance optimizations:
-
-1. **Worker Configuration**: When using SSE transport with Uvicorn, configure appropriate worker count:
-   ```bash
-   # For CPU-bound applications: workers = 1-2 × CPU cores
-   uvicorn src.main:app --workers 4
-   ```
-
-2. **Timeout Settings**: Adjust timeouts for large repositories:
-   ```
-   # Add to .env
-   GREPTILE_TIMEOUT=120.0  # Default is 60.0 seconds
-   ```
-
-3. **Memory Optimization**: For large deployments, consider container resource limits:
-   ```bash
-   docker run --rm --env-file .env -p 8050:8050 --memory="1g" --cpus="1.0" greptile-mcp
-   ```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Setup
-
-For development, install additional dependencies:
-
-```bash
-pip install -e ".[dev]"
-```
-
-Run tests:
-
-```bash
-pytest
-```
+| `HOST` | Host to bind to | `0.0.0.0` |
+| `PORT` | Port to listen on | `8050` |
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
 
 ---
 
-Built by (https://github.com/sosacrazy126) 
+Built by [@sosacrazy126](https://github.com/sosacrazy126)
