@@ -88,6 +88,14 @@ To deploy using Smithery:
 
 ## Installation
 
+### Installing via Smithery
+
+To install Greptile Code Search Server for Claude automatically via [Smithery](https://smithery.ai/server/@sosacrazy126/greptile-mcp):
+
+```bash
+npx -y @smithery/cli install @sosacrazy126/greptile-mcp --client claude
+```
+
 ### Using pip
 
 1. Clone this repository:
