@@ -86,7 +86,7 @@ async def query_repository(
     genius: bool = True,
     timeout: Optional[float] = None,
     previous_messages: Optional[List[Dict[str, Any]]] = None
-) -> Union[str, AsyncGenerator[str, None]]:
+):
     """
     Query repositories to get an answer with code references.
 
