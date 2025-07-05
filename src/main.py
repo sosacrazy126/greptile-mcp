@@ -9,7 +9,7 @@ import asyncio
 import uuid
 from typing import List, Dict, Any, Optional
 from fastmcp import FastMCP
-from .utils import GreptileClient
+from src.utils import GreptileClient
 
 # Create the modern MCP server
 mcp = FastMCP(

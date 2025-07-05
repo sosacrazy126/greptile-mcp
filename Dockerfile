@@ -22,7 +22,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import sys; sys.exit(0)"
+    CMD python -c "from src.main import mcp; import sys; sys.exit(0 if mcp else 1)"
 
 # Default command
 CMD ["python", "-m", "src.main"]
