@@ -111,16 +111,20 @@ async def query_repository(
         session_id = str(uuid.uuid4())
 
     try:
+        # Convert query to messages format
+        messages = [{"role": "user", "content": query}]
+        if previous_messages_list:
+            messages = previous_messages_list + messages
+
         if stream:
             # For streaming, collect all chunks and return as complete response
             chunks = []
             async for chunk in client.stream_query_repositories(
-                query=query,
+                messages=messages,
                 repositories=repositories_list,
                 session_id=session_id,
                 genius=genius,
-                timeout=timeout,
-                previous_messages=previous_messages_list
+                timeout=timeout
             ):
                 chunks.append(chunk)
 
@@ -128,12 +132,11 @@ async def query_repository(
             result = {"message": "".join(chunks), "session_id": session_id, "streamed": True}
         else:
             result = await client.query_repositories(
-                query=query,
+                messages=messages,
                 repositories=repositories_list,
                 session_id=session_id,
                 genius=genius,
-                timeout=timeout,
-                previous_messages=previous_messages_list
+                timeout=timeout
             )
             result["session_id"] = session_id
 
@@ -178,13 +181,17 @@ async def search_repository(
         session_id = str(uuid.uuid4())
 
     try:
+        # Convert query to messages format
+        messages = [{"role": "user", "content": query}]
+        if previous_messages_list:
+            messages = previous_messages_list + messages
+
         result = await client.search_repositories(
-            query=query,
+            messages=messages,
             repositories=repositories_list,
             session_id=session_id,
             genius=genius,
-            timeout=timeout,
-            previous_messages=previous_messages_list
+            timeout=timeout
         )
         result["session_id"] = session_id
         return json.dumps(result)
