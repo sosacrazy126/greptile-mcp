@@ -1,0 +1,5 @@
+{
+  "server_url": "http://localhost:8080/json-rpc",
+  "api_key": "YOUR_API_KEY_HERE",
+  "github_token": "YOUR_GITHUB_TOKEN_HERE"
+}

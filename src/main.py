@@ -10,12 +10,27 @@ import uuid
 import json
 from typing import Optional
 from fastmcp import FastMCP
-from src.utils import GreptileClient
+from src.utils import (
+    GreptileClient,
+    validate_repositories,
+    format_messages_for_api,
+    query_multiple_repositories,
+    compare_repositories,
+    search_multiple_repositories,
+)
+import uuid
+import functools
+import json
+
+# Session manager is now always present
+from src.utils import SessionManager
+session_manager = SessionManager()
 
 # Create the modern MCP server
 mcp = FastMCP(
     name="Greptile MCP Server",
-    instructions="Modern MCP server for code search and querying with Greptile API"
+    instructions="Modern MCP server for code search and querying with Greptile API",
+    session_manager=session_manager,
 )
 
 # Global client instance (will be initialized on first use)
@@ -37,12 +52,25 @@ async def get_greptile_client() -> GreptileClient:
     
     return _greptile_client
 
+def require_initialized(func):
+    """
+    Decorator that checks if greptile client is initialized. If not, raises ValueError.
+    """
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        client = await get_greptile_client()
+        if client is None:
+            raise ValueError("Greptile client is not initialized")
+        return await func(*args, **kwargs)
+    return wrapper
+
 @mcp.tool
+@require_initialized
 async def index_repository(
     remote: str,
     repository: str, 
     branch: str,
-    reload: bool = False,
+    reload: bool = True,
     notify: bool = False
 ) -> str:
     """
@@ -52,7 +80,7 @@ async def index_repository(
         remote: The repository host ("github" or "gitlab")
         repository: Repository in owner/repo format (e.g., "greptileai/greptile")
         branch: The branch to index (e.g., "main")
-        reload: Whether to force reprocessing of a previously indexed repository
+        reload: Whether to force reprocessing of a previously indexed repository (default: True)
         notify: Whether to send an email notification when indexing is complete
     
     Returns:
@@ -145,11 +173,12 @@ async def query_repository(
         return json.dumps({"error": str(e), "type": type(e).__name__, "session_id": session_id})
 
 @mcp.tool
+@require_initialized
 async def search_repository(
     query: str,
     repositories: str,  # JSON string instead of List[Dict[str, str]]
     session_id: Optional[str] = None,
-    genius: bool = True,
+    genius: bool = False,
     timeout: Optional[float] = None,
     previous_messages: Optional[str] = None  # JSON string instead of List[Dict[str, Any]]
 ) -> str:  # Simplified return type
@@ -160,7 +189,7 @@ async def search_repository(
         query: The search query about the codebase
         repositories: JSON string of repositories to search (e.g., '[{"remote":"github","repository":"owner/repo","branch":"main"}]')
         session_id: Optional session ID for conversation continuity
-        genius: Whether to use enhanced search capabilities (default: True)
+        genius: Whether to use enhanced search capabilities (default: False)
         timeout: Optional timeout for the request in seconds
         previous_messages: Optional JSON string of previous messages for context
 
@@ -199,6 +228,7 @@ async def search_repository(
         return json.dumps({"error": str(e), "type": type(e).__name__, "session_id": session_id})
 
 @mcp.tool
+@require_initialized
 async def get_repository_info(
     remote: str,
     repository: str,
@@ -223,6 +253,142 @@ async def get_repository_info(
             repository=repository,
             branch=branch
         )
+        return json.dumps(result)
+    except Exception as e:
+        return json.dumps({"error": str(e), "type": type(e).__name__})
+
+# --- New FastMCP Tools for batch/multi/compare repo support ---
+
+@mcp.tool
+@require_initialized
+async def query_multiple_repositories(
+    messages_or_query: str,
+    repositories: str,  # JSON string; can be list-of-list
+    session_id: Optional[str] = None,
+    stream: bool = False,
+    genius: bool = True,
+    timeout: Optional[float] = None
+) -> str:
+    """
+    Query multiple repositories (optionally batched) using the Greptile API.
+
+    Args:
+        messages_or_query: Either a user query (str) or a JSON-encoded list of message dicts
+        repositories: JSON string; may be list-of-list of repo dicts
+        session_id: Optional session ID for conversation
+        stream: Whether to stream the response
+        genius: Use enhanced query mode (default: True)
+        timeout: Optional timeout in seconds
+
+    Returns:
+        JSON string result
+    """
+    client = await get_greptile_client()
+    try:
+        repos = json.loads(repositories) if repositories else []
+        validate_repositories(flatten_repositories(repos))
+        messages = format_messages_for_api(messages_or_query)
+        if session_id is None:
+            session_id = str(uuid.uuid4())
+        result = await query_multiple_repositories(
+            client=client,
+            messages=messages,
+            repositories=repos,
+            session_id=session_id,
+            stream=stream,
+            genius=genius,
+            timeout=timeout
+        )
+        result["session_id"] = session_id
+        return json.dumps(result)
+    except Exception as e:
+        return json.dumps({"error": str(e), "type": type(e).__name__})
+
+@mcp.tool
+@require_initialized
+async def compare_repositories(
+    messages_or_query: str,
+    repositories_a: str,  # JSON string of list[repo]
+    repositories_b: str,  # JSON string of list[repo]
+    session_id: Optional[str] = None,
+    genius: bool = True,
+    timeout: Optional[float] = None
+) -> str:
+    """
+    Compare two sets of repositories using the Greptile API.
+
+    Args:
+        messages_or_query: Either a user query (str) or a JSON-encoded list of message dicts
+        repositories_a: JSON string of first repo set
+        repositories_b: JSON string of second repo set
+        session_id: Optional session ID for conversation
+        genius: Use enhanced query mode (default: True)
+        timeout: Optional timeout in seconds
+
+    Returns:
+        JSON string result as { "a": ..., "b": ... }
+    """
+    client = await get_greptile_client()
+    try:
+        repos_a = json.loads(repositories_a) if repositories_a else []
+        repos_b = json.loads(repositories_b) if repositories_b else []
+        validate_repositories(repos_a)
+        validate_repositories(repos_b)
+        messages = format_messages_for_api(messages_or_query)
+        if session_id is None:
+            session_id = str(uuid.uuid4())
+        result = await compare_repositories(
+            client=client,
+            messages=messages,
+            repositories_a=repos_a,
+            repositories_b=repos_b,
+            session_id=session_id,
+            genius=genius,
+            timeout=timeout
+        )
+        result["session_id"] = session_id
+        return json.dumps(result)
+    except Exception as e:
+        return json.dumps({"error": str(e), "type": type(e).__name__})
+
+@mcp.tool
+@require_initialized
+async def search_multiple_repositories(
+    messages_or_query: str,
+    repositories: str,  # JSON string, may be list-of-list
+    session_id: Optional[str] = None,
+    genius: bool = True,
+    timeout: Optional[float] = None
+) -> str:
+    """
+    Search across multiple repositories (optionally batched) using the Greptile API.
+
+    Args:
+        messages_or_query: Either a user query (str) or a JSON-encoded list of message dicts
+        repositories: JSON string; may be list-of-list of repo dicts
+        session_id: Optional session ID for conversation
+        genius: Use enhanced search mode (default: True)
+        timeout: Optional timeout in seconds
+
+    Returns:
+        JSON string result
+    """
+    client = await get_greptile_client()
+    try:
+        repos = json.loads(repositories) if repositories else []
+        validate_repositories(flatten_repositories(repos))
+        messages = format_messages_for_api(messages_or_query)
+        if session_id is None:
+            session_id = str(uuid.uuid4())
+        result = await search_multiple_repositories(
+            client=client,
+            messages=messages,
+            repositories=repos,
+            session_id=session_id,
+            genius=genius,
+            timeout=timeout
+        )
+        result["session_id"] = session_id
         return json.dumps(result)
     except Exception as e:
         return json.dumps({"error": str(e), "type": type(e).__name__})

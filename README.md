@@ -140,6 +140,17 @@ python -m src.main
 docker run --rm -e GREPTILE_API_KEY=your_key -e GITHUB_TOKEN=your_token -p 8050:8050 greptile-mcp
 ```
 
+### HTTP/JSON-RPC Mode (Smithery)
+
+- To run the HTTP JSON-RPC server (port **8080**):
+
+```bash
+docker build -f Dockerfile.smithery -t greptile-mcp-http .
+docker run --rm -e GREPTILE_API_KEY=your_key -e GITHUB_TOKEN=your_token -p 8080:8080 greptile-mcp-http
+```
+
+- The HTTP endpoint will be available at: `http://localhost:8080/json-rpc`
+
 ## Integration with MCP Clients
 
 Configure your MCP client to connect to the server:

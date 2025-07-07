@@ -61,6 +61,12 @@ README.md
 CONTRIBUTING.md
 LICENSE
 CHANGELOG.md
+# --- PR-146: also ignore debug scripts, docs drafts ---
+debug_*.py
+debug/
+drafts/
+draft_*.md
+draft_*.txt
 
 # Project specific
 phases_output/
