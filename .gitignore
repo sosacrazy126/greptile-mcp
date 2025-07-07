@@ -152,7 +152,7 @@ claude_*.json
 .roomodes
 .taskmasterconfig
 .windsurfrules
-memory-bank/
+
 tasks/
 phases_output/
 

@@ -1,0 +1,167 @@
+# .clinerules - Greptile MCP Server Project Intelligence
+
+## Critical Project Patterns
+
+### FastMCP 2.0 Parameter Compatibility
+**Pattern**: Use simple types for MCP tool parameters, convert to complex types internally
+**Why**: FastMCP 2.0 cannot generate schemas for complex nested types like `List[Dict[str, str]]`
+**Implementation**:
+```python
+# MCP Tool Interface (simple)
+async def query_repository(repositories: str) -> str:
+    # Internal conversion (complex)
+    repositories_list = json.loads(repositories)
+    result = await client.query_repositories(repositories=repositories_list)
+    return json.dumps(result)
+```
+**Critical**: This pattern prevents MCP error -32602 (Invalid request parameters)
+
+### Parameter Mapping Between Interfaces
+**Pattern**: MCP tool parameters ≠ Greptile API parameters
+**Critical Mapping**:
+- MCP `query` parameter → Greptile API `messages` parameter
+- Convert: `query: str` → `messages: [{"role": "user", "content": query}]`
+**Why**: Greptile API expects conversation format, MCP tools provide simple queries
+**Impact**: Prevents TypeError: `got unexpected keyword argument 'query'`
+
+### Smithery Build Optimization
+**Pattern**: Keep Docker context minimal for deployment platforms
+**Critical Rule**: Never include large test suites in production builds
+**Lesson**: 1,975 lines of test code caused 3+ hour build hangs on Smithery
+**Solution**: Use `.dockerignore` to exclude tests, or keep tests in separate branches
+**Monitoring**: Smithery builds should complete in 2-5 minutes, not hours
+
+## User Workflow Preferences
+
+### Error Handling Philosophy
+**Preference**: Always return structured JSON errors, never crash the server
+**Format**:
+```json
+{
+    "error": "Human-readable message",
+    "type": "ErrorClassName",
+    "session_id": "uuid-string"
+}
+```
+**Why**: Consistent error handling across all MCP tools
+
+### Development Approach
+**Preference**: Start simple, then optimize
+**Pattern**: 
+1. Get basic functionality working
+2. Identify real-world issues through deployment
+3. Fix issues with minimal changes
+4. Avoid over-engineering solutions
+
+### Testing Strategy
+**Preference**: Test in real deployment environments (Smithery) early
+**Why**: Local Docker builds may work while deployment builds fail
+**Pattern**: Validate changes on actual deployment platforms before considering complete
+
+## Technical Constraints Discovered
+
+### Smithery Platform Limitations
+**Constraint**: Build timeouts on large codebases or complex builds
+**Mitigation**: Keep builds minimal, exclude unnecessary files
+**Monitoring**: Watch build times as indicator of deployment health
+
+### FastMCP 2.0 Type System
+**Constraint**: Limited support for complex generic types
+**Workaround**: Use JSON strings for complex data structures
+**Pattern**: Parse JSON at runtime rather than compile-time type checking
+
+### Greptile API Integration
+**Constraint**: API expects specific parameter formats (messages vs query)
+**Solution**: Always convert between MCP interface and API interface
+**Pattern**: Maintain clean separation between user interface and API interface
+
+## Project Evolution Insights
+
+### Modernization Journey
+**Key Insight**: Legacy MCP implementations are complex and error-prone
+**Solution**: FastMCP 2.0 reduces boilerplate by 90% but requires simpler types
+**Trade-off**: Less compile-time type safety for much simpler implementation
+
+### Deployment Platform Differences
+**Insight**: What works locally may not work on deployment platforms
+**Example**: Docker builds work locally but hang on Smithery with large contexts
+**Strategy**: Test on target platforms early and often
+
+### Error Debugging Approach
+**Pattern**: When errors occur, check parameter mapping first
+**Why**: Most issues stem from interface mismatches between MCP tools and external APIs
+**Tools**: Use structured logging to trace parameter transformations
+
+## Code Quality Standards
+
+### Import Patterns
+**Standard**: Use absolute imports for production code
+```python
+from src.main import query_repository  # ✅ Correct
+from main import query_repository      # ❌ Causes import errors
+```
+
+### Environment Variable Handling
+**Standard**: Fail fast with clear error messages
+```python
+api_key = os.getenv("GREPTILE_API_KEY")
+if not api_key:
+    raise ValueError("GREPTILE_API_KEY environment variable is required")
+```
+
+### Async Function Patterns
+**Standard**: Always use proper async/await patterns for external API calls
+**Why**: Prevents blocking the event loop and improves performance
+
+## Deployment Best Practices
+
+### Docker Build Optimization
+**Rule**: Keep Docker context as small as possible
+**Implementation**: Use comprehensive `.dockerignore`
+**Monitoring**: Build times should be <5 minutes for simple Python applications
+
+### Environment Configuration
+**Pattern**: Use environment variables for all external configuration
+**Security**: Never commit API keys or tokens to version control
+**Validation**: Validate all required environment variables at startup
+
+### Health Check Implementation
+**Pattern**: Test actual server functionality, not just process existence
+```dockerfile
+HEALTHCHECK CMD python -c "from src.main import mcp; import sys; sys.exit(0 if mcp else 1)"
+```
+
+## Communication Patterns
+
+### Error Reporting
+**Preference**: Provide specific, actionable error messages
+**Example**: "GREPTILE_API_KEY environment variable is required" vs "Configuration error"
+
+### Progress Updates
+**Pattern**: Provide clear status updates during long-running operations
+**Implementation**: Use structured responses with status fields
+
+### Documentation Style
+**Preference**: Include both what and why in technical documentation
+**Pattern**: Explain the reasoning behind technical decisions, not just the implementation
+
+## Future Development Guidelines
+
+### Feature Addition Process
+1. **Validate need** through real user feedback
+2. **Design simple interface** that fits existing patterns
+3. **Implement with error handling** from the start
+4. **Test on deployment platforms** before considering complete
+5. **Document patterns** for future reference
+
+### Performance Optimization
+**Rule**: Measure before optimizing
+**Pattern**: Establish baselines, then optimize based on real usage data
+**Focus**: User-facing performance (response times) over internal metrics
+
+### Community Engagement
+**Approach**: Share working solutions, gather feedback, iterate
+**Pattern**: Release early and often, but ensure basic functionality works
+**Documentation**: Maintain clear setup instructions for new users
+
+This project has taught valuable lessons about modern MCP development, deployment platform constraints, and the importance of testing in real-world environments. The patterns documented here should guide future development and help avoid repeating resolved issues.
