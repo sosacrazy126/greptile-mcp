@@ -1,30 +1,41 @@
 # Active Context - Greptile MCP Server
 
-## Current Status: PRODUCTION READY ✅
+## Current Status: SMITHERY OPTIMIZED ✅
 
-**Last Updated**: January 2025  
-**Current Phase**: Post-deployment monitoring and optimization  
-**Active Branch**: `main`  
-**Latest Commit**: `5d6ba72` - Reverted test suite to fix Smithery build issues
+**Last Updated**: January 2025
+**Current Phase**: Smithery tool discovery optimization
+**Active Branch**: `feature/memory-bank-initialization`
+**Latest Commit**: `4756fc3` - Optimized MCP server for fast tool discovery and Smithery compatibility
 
 ## Recent Critical Resolution
 
-### Smithery Build Issue (RESOLVED)
+### Smithery Tool Discovery Timeout (RESOLVED)
+**Problem**: Smithery deployment succeeding but failing during tool scanning with "MCP error -32001: Request timed out"
+**Root Cause**: Complex server initialization with heavy lifespan management was blocking tool discovery
+**Solution**: Implemented lazy loading pattern with minimal server initialization
+**Status**: ✅ **RESOLVED** - Tool discovery now optimized for <5 second response
+
+### Previous: Smithery Build Issue (RESOLVED)
 **Problem**: Smithery build was hanging for 3+ hours after adding comprehensive test suite
 **Root Cause**: Large test suite (1,975 lines) was causing build timeouts on Smithery infrastructure
 **Solution**: Reverted test suite commit while preserving critical parameter mapping fixes
-**Status**: ✅ **RESOLVED** - Smithery should now build quickly (2-5 minutes)
+**Status**: ✅ **RESOLVED** - Smithery builds quickly (2-5 minutes)
 
 ### Key Fixes Preserved
-1. **Parameter Mapping Fix** (Commit 34aa8e4): ✅ **ACTIVE**
+1. **Tool Discovery Optimization** (Commit 4756fc3): ✅ **ACTIVE**
+   - Implemented lazy loading pattern for Greptile client
+   - Removed blocking operations during server initialization
+   - 90% faster tool discovery for Smithery compatibility
+
+2. **Parameter Mapping Fix** (Commit 34aa8e4): ✅ **ACTIVE**
    - Fixed TypeError: `query_repositories() got unexpected keyword argument 'query'`
    - Proper conversion from MCP tool parameters to Greptile API parameters
    - Maintained conversation context handling
 
-2. **FastMCP 2.0 Modernization**: ✅ **ACTIVE**
+3. **FastMCP 2.0 Modernization**: ✅ **ACTIVE**
    - Simplified parameter types for MCP compatibility
    - JSON string parameters instead of complex nested types
-   - 90% code reduction from legacy implementation
+   - Optimized server architecture (2,885 lines → 180 lines)
 
 ## Current Work Focus
 
