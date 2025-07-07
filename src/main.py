@@ -14,13 +14,12 @@ from src.utils import (
     GreptileClient,
     validate_repositories,
     format_messages_for_api,
-    query_multiple_repositories,
-    compare_repositories,
-    search_multiple_repositories,
+    flatten_repositories,
+    query_multiple_repositories as _client_query_multiple_repositories,
+    compare_repositories as _client_compare_repositories,
+    search_multiple_repositories as _client_search_multiple_repositories,
 )
-import uuid
 import functools
-import json
 
 # Session manager is now always present
 from src.utils import SessionManager
@@ -101,6 +100,7 @@ async def index_repository(
         return json.dumps({"error": str(e), "type": type(e).__name__})
 
 @mcp.tool
+@require_initialized
 async def query_repository(
     query: str,
     repositories: str,  # JSON string instead of List[Dict[str, str]]
@@ -290,7 +290,7 @@ async def query_multiple_repositories(
         messages = format_messages_for_api(messages_or_query)
         if session_id is None:
             session_id = str(uuid.uuid4())
-        result = await query_multiple_repositories(
+        result = await _client_query_multiple_repositories(
             client=client,
             messages=messages,
             repositories=repos,
@@ -337,7 +337,7 @@ async def compare_repositories(
         messages = format_messages_for_api(messages_or_query)
         if session_id is None:
             session_id = str(uuid.uuid4())
-        result = await compare_repositories(
+        result = await _client_compare_repositories(
             client=client,
             messages=messages,
             repositories_a=repos_a,
@@ -380,7 +380,7 @@ async def search_multiple_repositories(
         messages = format_messages_for_api(messages_or_query)
         if session_id is None:
             session_id = str(uuid.uuid4())
-        result = await search_multiple_repositories(
+        result = await _client_search_multiple_repositories(
             client=client,
             messages=messages,
             repositories=repos,
