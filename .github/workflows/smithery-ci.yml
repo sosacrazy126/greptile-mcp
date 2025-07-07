@@ -1,0 +1,61 @@
+name: Smithery CI
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'smithery.yaml'
+      - 'Dockerfile.smithery'
+      - '.github/workflows/smithery-ci.yml'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - 'tests/**'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'smithery.yaml'
+      - 'Dockerfile.smithery'
+      - '.github/workflows/smithery-ci.yml'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - 'tests/**'
+
+jobs:
+  smithery-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build docker image
+        run: docker build -f Dockerfile.smithery -t greptile-mcp-smithery .
+      - name: Start container
+        run: |
+          docker run -d --name mcp-test \
+            -e GREPTILE_API_KEY=dummy \
+            -e GITHUB_TOKEN=dummy \
+            -e PORT=8080 \
+            -p 8080:8080 \
+            greptile-mcp-smithery
+      - name: Wait for server
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:8080/health 2>/dev/null; then
+              echo "Server is ready!"
+              break
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 2
+          done
+      - name: Healthcheck endpoint
+        run: |
+          curl -f http://localhost:8080/health
+      - name: MCP endpoint
+        run: |
+          curl -f http://localhost:8080/mcp
+      - name: Stop container
+        if: always()
+        run: docker stop mcp-test && docker rm mcp-test

@@ -128,13 +128,48 @@ coverage.xml
 profile_default/
 ipython_config.py
 
-# Additional development files not needed in codebase
+# Development and debug files
+debug_*.py
+test_*.py
+*_debug.py
+*_test.py
+temp_*.py
+tmp_*.py
+
+# Configuration files (keep templates only)
+*_config.json
+*_desktop_config.json
+vscode_*.json
+claude_*.json
+!*_config_template.json
+!*_config.example.json
+
+# Development environments and tools
 .cursor/
 .roo/
-memory-bank/
-tasks/
 .cursorignore
 .cursorrules
 .roomodes
 .taskmasterconfig
 .windsurfrules
+memory-bank/
+tasks/
+phases_output/
+
+# Additional IDE and development files
+.python-version
+.ipynb_checkpoints/
+.jupyter/
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.sublime-*
+
+# Temporary development files
+VSCODE_SETUP.md
+# Don't ignore __init__.py files as they're needed for package structure
+run_*.py
+*_temp.*
+*_tmp.*
+.temp/
+.tmp/

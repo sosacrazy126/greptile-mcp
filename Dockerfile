@@ -16,9 +16,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY src/ ./src/
 
-# Set environment variables
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
+# Set default environment variables
+ENV PYTHONUNBUFFERED=1 \
+    GREPTILE_BASE_URL=https://api.greptile.com/v2 \
+    HOST=0.0.0.0 \
+    PORT=8080 \
+    PYTHONPATH=/app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
