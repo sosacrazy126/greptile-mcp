@@ -5,6 +5,7 @@ import typing
 import uuid
 import asyncio
 import logging
+import json
 from collections.abc import AsyncGenerator
 from typing import Optional, Any, Dict, List, Union
 
@@ -260,7 +261,6 @@ def __safe_json_loads(text: str) -> Any:
     Attempt to decode a JSON string; returns None on failure.
     Used for robustly parsing streaming response lines.
     """
-    import json
     try:
         return json.loads(text)
     except Exception:
@@ -287,3 +287,139 @@ def get_greptile_client() -> GreptileClient:
         raise ValueError("GITHUB_TOKEN environment variable is required")
 
     return GreptileClient(api_key, github_token, base_url)
+
+###############################################################################
+# Additional Helpers and Client Wrappers (PR #146 integration)
+###############################################################################
+
+def validate_repositories(repos: List[Dict[str, str]]) -> None:
+    """
+    Raises ValueError if any repo entry is missing 'remote', 'repository', or 'branch' keys.
+    """
+    required_keys = {"remote", "repository", "branch"}
+    for idx, repo in enumerate(repos):
+        if not all(k in repo for k in required_keys):
+            raise ValueError(f"Repository entry at index {idx} missing required key(s): {required_keys - set(repo.keys())}")
+
+def format_messages_for_api(messages_or_query: Union[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    """
+    If a raw str is passed, wrap as single {'role':'user','content':...} entry.
+    If already list-of-dict, return as-is.
+    """
+    if isinstance(messages_or_query, str):
+        return [{"role": "user", "content": messages_or_query}]
+    if isinstance(messages_or_query, list):
+        return messages_or_query
+    raise ValueError("Invalid type for messages_or_query: expected str or list of dict")
+
+def flatten_repositories(repositories: List[Union[Dict[str, str], List[Dict[str, str]]]]) -> List[Dict[str, str]]:
+    """
+    Flattens a list of repositories or list-of-lists thereof into a single list.
+    """
+    flattened = []
+    for entry in repositories:
+        if isinstance(entry, list):
+            flattened.extend(entry)
+        else:
+            flattened.append(entry)
+    return flattened
+
+def ensure_async(func):
+    """
+    Decorator: ensures function is async, wraps sync as async if needed.
+    """
+    if asyncio.iscoroutinefunction(func):
+        return func
+    async def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+def _aggregate_list_of_lists(list_of_lists):
+    agg = []
+    for e in list_of_lists:
+        if isinstance(e, list):
+            agg.extend(e)
+        else:
+            agg.append(e)
+    return agg
+
+def _as_jsonable(obj):
+    try:
+        json.dumps(obj)
+        return obj
+    except Exception:
+        return str(obj)
+
+# ---- Async wrappers for GreptileClient ----
+@ensure_async
+async def query_multiple_repositories(
+    client: GreptileClient,
+    messages: Union[str, List[Dict[str, Any]]],
+    repositories: List[Union[Dict[str, str], List[Dict[str, str]]]],
+    session_id: Optional[str] = None,
+    stream: bool = False,
+    genius: bool = True,
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Same signature as query_repositories but allows repositories to be list-of-list.
+    (For now, calls straight through to query_repositories using aggregated list.)
+    """
+    agg_repos = flatten_repositories(repositories)
+    return await client.query_repositories(
+        messages=format_messages_for_api(messages),
+        repositories=agg_repos,
+        session_id=session_id,
+        stream=stream,
+        genius=genius,
+        timeout=timeout,
+    )
+
+@ensure_async
+async def compare_repositories(
+    client: GreptileClient,
+    messages: Union[str, List[Dict[str, Any]]],
+    repositories_a: List[Dict[str, str]],
+    repositories_b: List[Dict[str, str]],
+    session_id: Optional[str] = None,
+    genius: bool = True,
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Calls query_repositories twice (once per repo set) and returns combined dict {'a':..., 'b':...}.
+    """
+    result_a = await client.query_repositories(
+        messages=format_messages_for_api(messages),
+        repositories=repositories_a,
+        session_id=session_id,
+        genius=genius,
+        timeout=timeout,
+    )
+    result_b = await client.query_repositories(
+        messages=format_messages_for_api(messages),
+        repositories=repositories_b,
+        session_id=session_id,
+        genius=genius,
+        timeout=timeout,
+    )
+    return {"a": result_a, "b": result_b}
+
+@ensure_async
+async def search_multiple_repositories(
+    client: GreptileClient,
+    messages: Union[str, List[Dict[str, Any]]],
+    repositories: List[Union[Dict[str, str], List[Dict[str, str]]]],
+    session_id: Optional[str] = None,
+    genius: bool = True,
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Same as search_repositories but with flattened repo list.
+    """
+    agg_repos = flatten_repositories(repositories)
+    return await client.search_repositories(
+        messages=format_messages_for_api(messages),
+        repositories=agg_repos,
+        session_id=session_id,
+        genius=genius,
+    )
