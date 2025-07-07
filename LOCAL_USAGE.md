@@ -43,20 +43,13 @@ This starts an HTTP server on port 8080 that handles MCP requests via HTTP endpo
 
 ## Using with Claude Desktop
 
-1. Copy the template configuration:
-   ```bash
-   cp claude_desktop_config_template.json claude_desktop_config.json
-   ```
-
-2. Edit `claude_desktop_config.json` to add your actual API keys
-
-3. Add this configuration to your Claude Desktop config (usually `~/.config/claude/claude.json`):
+1. Add this configuration to your Claude Desktop config (usually `~/.config/claude/claude.json`):
 
 ```json
 {
   "mcpServers": {
     "greptile": {
-      "command": "/path/to/grep-mcp/.venv/bin/python",
+      "command": "${PATH_TO_INSTALLATION}/.venv/bin/python",
       "args": ["-m", "src.main"],
       "env": {
         "GREPTILE_API_KEY": "your_key",
@@ -73,7 +66,7 @@ This starts an HTTP server on port 8080 that handles MCP requests via HTTP endpo
 
 2. **API Key Errors**: Ensure your `.env` file has valid API keys.
 
-3. **Server Won't Start**: Check that the port (8050 for SSE, 8080 for HTTP) is not already in use.
+3. **Server Won't Start**: Check that the port (default 8050 for SSE, 8080 for HTTP) is not already in use.
 
 ## Environment Variables
 

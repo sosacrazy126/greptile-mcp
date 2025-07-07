@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy all project files
+# Copy all project files (excluding files listed in .dockerignore)
 COPY . .
 
 # Install Python dependencies

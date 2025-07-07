@@ -30,7 +30,7 @@ startCommand:
       env: {
         GREPTILE_API_KEY: config.GREPTILE_API_KEY,
         GITHUB_TOKEN: config.GITHUB_TOKEN,
-        GREPTILE_BASE_URL: config.GREPTILE_BASE_URL || "https://api.greptile.com/v2",
+        GREPTILE_BASE_URL: config.GREPTILE_BASE_URL,
         PORT: process.env.PORT || "8080"
       }
     })

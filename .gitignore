@@ -157,10 +157,6 @@ tasks/
 phases_output/
 
 # Additional IDE and development files
-*.pyc
-*.pyo
-*.pyd
-__pycache__/
 .python-version
 .ipynb_checkpoints/
 .jupyter/
@@ -171,7 +167,7 @@ __pycache__/
 
 # Temporary development files
 VSCODE_SETUP.md
-__init__.py
+# Don't ignore __init__.py files as they're needed for package structure
 run_*.py
 *_temp.*
 *_tmp.*

@@ -82,7 +82,10 @@ Usage:
 await index_repository(ctx, "github", "myapp/frontend", "main")
 await index_repository(ctx, "github", "nextauthjs/next-auth", "main")
 
-repos = [/* both repos */]
+repos = [
+  {"remote": "github", "repository": "myapp/frontend", "branch": "main"},
+  {"remote": "github", "repository": "nextauthjs/next-auth", "branch": "main"}
+]
 result = await query_repository(ctx, 
   "Step-by-step guide to add Google sign-in", repos)
 ```
