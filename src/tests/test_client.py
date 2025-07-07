@@ -129,16 +129,21 @@ class TestGreptileClient:
                 "confidence": 0.95
             }
             
-            # Patch the post method to return our mock response
-            client.client.post = AsyncMock(return_value=mock_response)
+            # Create a mock async client
+            mock_async_client = AsyncMock()
+            mock_async_client.post = AsyncMock(return_value=mock_response)
+            mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+            mock_async_client.__aexit__ = AsyncMock(return_value=None)
             
-            messages = [{"role": "user", "content": "test query"}]
-            repositories = [{"remote": "github", "repository": "test/repo", "branch": "main"}]
-            
-            result = await client.query_repositories(
-                messages=messages,
-                repositories=repositories
-            )
+            # Patch httpx.AsyncClient to return our mock
+            with patch('httpx.AsyncClient', return_value=mock_async_client):
+                messages = [{"role": "user", "content": "test query"}]
+                repositories = [{"remote": "github", "repository": "test/repo", "branch": "main"}]
+                
+                result = await client.query_repositories(
+                    messages=messages,
+                    repositories=repositories
+                )
             
             # Check the result matches our mock
             assert result["answer"] == "This is a test answer"
@@ -146,8 +151,8 @@ class TestGreptileClient:
             assert result["confidence"] == 0.95
             
             # Verify the POST request was made with correct arguments
-            client.client.post.assert_called_once()
-            args, kwargs = client.client.post.call_args
+            mock_async_client.post.assert_called_once()
+            args, kwargs = mock_async_client.post.call_args
             
             # Check URL is constructed correctly using the real base URL
             expected_base_url = os.getenv("GREPTILE_BASE_URL", "https://api.greptile.com/v2")

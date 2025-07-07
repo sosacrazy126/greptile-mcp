@@ -9,8 +9,14 @@ from mcp.server.fastmcp import FastMCP, Context
 
 # Import the tools from your main.py file
 # Make sure the path is correct based on your project structure
-from src.main import index_repository, query_repository, search_repository, get_repository_info
+from src.main import index_repository as _index_repository_tool, query_repository as _query_repository_tool, search_repository as _search_repository_tool, get_repository_info as _get_repository_info_tool
 from src.utils import GreptileClient
+
+# Extract the actual functions from the FunctionTool objects
+index_repository = _index_repository_tool.fn
+query_repository = _query_repository_tool.fn
+search_repository = _search_repository_tool.fn
+get_repository_info = _get_repository_info_tool.fn
 
 # Set environment variables for testing
 os.environ["GREPTILE_API_KEY"] = "test_api_key"
@@ -65,16 +71,16 @@ class TestMCPTools:
     @pytest.mark.asyncio
     async def test_index_repository(self, mock_context, mock_greptile_client):
         """Test the index_repository tool."""
-        result = await index_repository(
-            ctx=mock_context,
-            remote="github",
-            repository="test/repo",
-            branch="main"
-        )
+        with patch('src.main.get_greptile_client', return_value=mock_greptile_client):
+            result = await index_repository(
+                remote="github",
+                repository="test/repo",
+                branch="main"
+            )
         
         # Verify the client method was called with correct parameters
         mock_greptile_client.index_repository.assert_called_once_with(
-            "github", "test/repo", "main", True, False  # Updated to match current defaults
+            "github", "test/repo", "main", False, False  # Updated to match current defaults
         )
         
         # Parse and verify the result
@@ -86,21 +92,29 @@ class TestMCPTools:
     @pytest.mark.asyncio
     async def test_query_repository(self, mock_context, mock_greptile_client):
         """Test the query_repository tool."""
-        result = await query_repository(
-            ctx=mock_context,
-            query="test query",
-            repositories=[{"remote": "github", "repository": "test/repo", "branch": "main"}]
-        )
+        repositories_json = json.dumps([{"remote": "github", "repository": "test/repo", "branch": "main"}])
+        
+        with patch('src.main.get_greptile_client', return_value=mock_greptile_client):
+            result = await query_repository(
+                query="test query",
+                repositories=repositories_json
+            )
         
         # Verify the client method was called with correct parameters
         mock_greptile_client.query_repositories.assert_called_once()
         args, kwargs = mock_greptile_client.query_repositories.call_args
         
         # Verify the arguments match what we expect
-        # The first arg should be messages with id field
-        assert args[0] == [{"id": "msg_0", "content": "test query", "role": "user"}]
-        # The second arg should be repositories
-        assert args[1] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
+        # Check if arguments were passed as positional or keyword arguments
+        if args:
+            # The first arg should be messages
+            assert args[0] == [{"role": "user", "content": "test query"}]
+            # The second arg should be repositories
+            assert args[1] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
+        else:
+            # Arguments were passed as keyword arguments
+            assert kwargs["messages"] == [{"role": "user", "content": "test query"}]
+            assert kwargs["repositories"] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
         
         # Parse and verify the result
         parsed_result = json.loads(result)
@@ -110,21 +124,29 @@ class TestMCPTools:
     @pytest.mark.asyncio
     async def test_search_repository(self, mock_context, mock_greptile_client):
         """Test the search_repository tool."""
-        result = await search_repository(
-            ctx=mock_context,
-            query="test query",
-            repositories=[{"remote": "github", "repository": "test/repo", "branch": "main"}]
-        )
+        repositories_json = json.dumps([{"remote": "github", "repository": "test/repo", "branch": "main"}])
+        
+        with patch('src.main.get_greptile_client', return_value=mock_greptile_client):
+            result = await search_repository(
+                query="test query",
+                repositories=repositories_json
+            )
         
         # Verify the client method was called with correct parameters
         mock_greptile_client.search_repositories.assert_called_once()
         args, kwargs = mock_greptile_client.search_repositories.call_args
         
         # Verify the arguments match what we expect
-        # The first arg should be messages with id field
-        assert args[0] == [{"id": "msg_0", "content": "test query", "role": "user"}]
-        # The second arg should be repositories
-        assert args[1] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
+        # Check if arguments were passed as positional or keyword arguments
+        if args:
+            # The first arg should be messages
+            assert args[0] == [{"role": "user", "content": "test query"}]
+            # The second arg should be repositories
+            assert args[1] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
+        else:
+            # Arguments were passed as keyword arguments
+            assert kwargs["messages"] == [{"role": "user", "content": "test query"}]
+            assert kwargs["repositories"] == [{"remote": "github", "repository": "test/repo", "branch": "main"}]
         
         # Parse and verify the result
         parsed_result = json.loads(result)
@@ -136,15 +158,15 @@ class TestMCPTools:
     @pytest.mark.asyncio
     async def test_get_repository_info(self, mock_context, mock_greptile_client):
         """Test the get_repository_info tool."""
-        result = await get_repository_info(
-            ctx=mock_context,
-            remote="github",
-            repository="test/repo",
-            branch="main"
-        )
+        with patch('src.main.get_greptile_client', return_value=mock_greptile_client):
+            result = await get_repository_info(
+                remote="github",
+                repository="test/repo",
+                branch="main"
+            )
         
         # Verify the client method was called with correct parameters
-        mock_greptile_client.get_repository_info.assert_called_once_with("github:main:test/repo")
+        mock_greptile_client.get_repository_info.assert_called_once_with("github", "test/repo", "main")
         
         # Parse and verify the result
         parsed_result = json.loads(result)
@@ -158,12 +180,14 @@ class TestMCPTools:
         # Set up the mock to raise an exception
         mock_greptile_client.index_repository = AsyncMock(side_effect=Exception("Test error"))
         
-        result = await index_repository(
-            ctx=mock_context,
-            remote="github",
-            repository="test/repo",
-            branch="main"
-        )
+        with patch('src.main.get_greptile_client', return_value=mock_greptile_client):
+            result = await index_repository(
+                remote="github",
+                repository="test/repo",
+                branch="main"
+            )
         
-        # Verify the error message is returned
-        assert result.startswith("Error indexing repository: Test error")
+        # Verify the error message is returned as JSON
+        parsed_result = json.loads(result)
+        assert parsed_result["error"] == "Test error"
+        assert parsed_result["type"] == "Exception"
