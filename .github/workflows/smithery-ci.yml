@@ -9,7 +9,6 @@ on:
       - '.github/workflows/smithery-ci.yml'
       - 'requirements.txt'
       - 'pyproject.toml'
-      - 'setup.py'
       - 'tests/**'
   pull_request:
     paths:
