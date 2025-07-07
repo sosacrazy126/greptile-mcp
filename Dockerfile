@@ -1,27 +1,31 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim
+# Modern Dockerfile for FastMCP 2.0
+FROM python:3.12-slim
 
-# Set the working directory in the container
+# Set working directory
 WORKDIR /app
 
-# Install dependencies
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy source code
 COPY src/ ./src/
 
 # Set default environment variables
 ENV PYTHONUNBUFFERED=1 \
     GREPTILE_BASE_URL=https://api.greptile.com/v2 \
     HOST=0.0.0.0 \
-    PORT=8080
+    PORT=8080 \
+    PYTHONPATH=/app
 
-# Default to SSE transport, can be overridden by Smithery
-ENV TRANSPORT=sse
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "from src.main import mcp; import sys; sys.exit(0 if mcp else 1)"
 
-# Make port ${PORT} available outside this container
-EXPOSE ${PORT}
-
-# Define the command to run the application
-CMD ["python", "-m", "src.main"] 
+# Default command
+CMD ["python", "-m", "src.main"]
