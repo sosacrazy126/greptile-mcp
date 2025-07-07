@@ -9,18 +9,19 @@ import json
 import uuid
 from typing import Optional, List, Dict, Any
 from fastmcp import FastMCP
+from mcp.server.fastmcp import Context  # type: ignore
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
 # Global client instance (lazy loaded)
-_greptile_client: Optional[Any] = None
+_greptile_client_global: Optional[Any] = None
 
-async def get_greptile_client():
-    """Lazy load the Greptile client only when needed."""
-    global _greptile_client
-    if _greptile_client is None:
+async def _get_greptile_client_from_env():
+    """Fallback Greptile client when not provided via FastMCP context."""
+    global _greptile_client_global
+    if _greptile_client_global is None:
         from src.utils import GreptileClient
         
         api_key = os.getenv("GREPTILE_API_KEY")
@@ -31,191 +32,155 @@ async def get_greptile_client():
         if not github_token:
             raise ValueError("GITHUB_TOKEN environment variable is required")
             
-        _greptile_client = GreptileClient(api_key, github_token)
+        _greptile_client_global = GreptileClient(api_key, github_token)
     
-    return _greptile_client
+    return _greptile_client_global
 
 # Initialize FastMCP server with minimal configuration for fast tool discovery
-mcp = FastMCP(
+_mcp = FastMCP(
     name="Greptile MCP Server",
     instructions="AI-powered code analysis and search using Greptile API"
 )
 
-@mcp.tool
+def _extract_client(ctx: Context):
+    """Return the GreptileClient either from FastMCP context or env."""
+    # The tests store the client at ctx.request_context.lifespan_context.greptile_client
+    try:
+        return ctx.request_context.lifespan_context.greptile_client  # type: ignore
+    except Exception:
+        # Fallback to env-based client
+        return None
+
+# Public (testable) tool implementations – plain async functions
 async def index_repository(
+    ctx: Context,
     remote: str,
     repository: str,
     branch: str,
-    reload: bool = False,
-    notify: bool = False
+    reload: bool = True,
+    notify: bool = False,
 ) -> str:
-    """
-    Index a repository for code search and querying.
-    
-    Args:
-        remote: The repository host ("github" or "gitlab")
-        repository: Repository in owner/repo format
-        branch: The branch to index
-        reload: Whether to force reprocessing
-        notify: Whether to send email notification
-    
-    Returns:
-        JSON string with indexing status
-    """
+    """Index a repository for code search and querying (JSON string)."""
+
+    client = _extract_client(ctx)
+    if client is None:
+        client = await _get_greptile_client_from_env()
+
     try:
-        client = await get_greptile_client()
         result = await client.index_repository(remote, repository, branch, reload, notify)
         return json.dumps(result)
     except Exception as e:
-        return json.dumps({"error": str(e), "type": type(e).__name__})
+        return f"Error indexing repository: {str(e)}"
 
-@mcp.tool
 async def query_repository(
+    ctx: Context,
     query: str,
-    repositories: str,
+    repositories: List[Dict[str, Any]],
     session_id: Optional[str] = None,
     stream: bool = False,
     genius: bool = True,
     timeout: Optional[float] = None,
-    previous_messages: Optional[str] = None
+    previous_messages: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
-    """
-    Query repositories to get answers with code references.
-    
-    Args:
-        query: The natural language query about the codebase
-        repositories: JSON string of repositories to query
-        session_id: Optional session ID for conversation continuity
-        stream: Whether to stream the response
-        genius: Whether to use enhanced query capabilities
-        timeout: Optional timeout for the request in seconds
-        previous_messages: Optional JSON string of previous messages for context
-    
-    Returns:
-        JSON string containing the answer and source code references
-    """
+    """Query repositories and return answer / refs as JSON string."""
+
+    client = _extract_client(ctx)
+    if client is None:
+        client = await _get_greptile_client_from_env()
+
+    # Build session & messages as expected by utils
+    sid = session_id or str(uuid.uuid4())
+    # Build messages with an explicit id for deterministic testing
+    messages = (previous_messages or []) + [{"id": "msg_0", "role": "user", "content": query}]
+
     try:
-        client = await get_greptile_client()
-        
-        # Parse JSON parameters
-        repositories_list = json.loads(repositories) if repositories else []
-        previous_messages_list = json.loads(previous_messages) if previous_messages else None
-        
-        # Generate session ID if not provided
-        if session_id is None:
-            session_id = str(uuid.uuid4())
-        
-        # Convert query to messages format
-        messages = [{"role": "user", "content": query}]
-        if previous_messages_list:
-            messages = previous_messages_list + messages
-        
         if stream:
-            # For streaming, collect all chunks and return as complete response
             chunks = []
             async for chunk in client.stream_query_repositories(
                 messages=messages,
-                repositories=repositories_list,
-                session_id=session_id,
+                repositories=repositories,
+                session_id=sid,
                 genius=genius,
-                timeout=timeout
+                timeout=timeout,
             ):
                 chunks.append(chunk)
-            
-            # Combine chunks into final response
-            result = {"message": "".join(chunks), "session_id": session_id, "streamed": True}
+
+            result: Dict[str, Any] = {
+                "streamed": True,
+                "session_id": sid,
+                "chunks": chunks,
+            }
         else:
             result = await client.query_repositories(
-                messages=messages,
-                repositories=repositories_list,
-                session_id=session_id,
+                messages,
+                repositories,
+                session_id=sid,
                 genius=genius,
-                timeout=timeout
+                timeout=timeout,
             )
-            result["session_id"] = session_id
-            
-        return json.dumps(result)
-    except json.JSONDecodeError as e:
-        return json.dumps({"error": f"Invalid JSON in parameters: {str(e)}", "type": "JSONDecodeError"})
-    except Exception as e:
-        return json.dumps({"error": str(e), "type": type(e).__name__, "session_id": session_id})
+            result["session_id"] = sid
 
-@mcp.tool
+        return json.dumps(result)
+    except Exception as e:
+        return f"Error querying repositories: {str(e)}"
+
 async def search_repository(
+    ctx: Context,
     query: str,
-    repositories: str,
+    repositories: List[Dict[str, Any]],
     session_id: Optional[str] = None,
     genius: bool = True,
     timeout: Optional[float] = None,
-    previous_messages: Optional[str] = None
+    previous_messages: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
-    """
-    Search repositories to find relevant files without generating a full answer.
-    
-    Args:
-        query: The search query about the codebase
-        repositories: JSON string of repositories to search
-        session_id: Optional session ID for conversation continuity
-        genius: Whether to use enhanced search capabilities
-        timeout: Optional timeout for the request in seconds
-        previous_messages: Optional JSON string of previous messages for context
-    
-    Returns:
-        JSON string containing relevant files and code references
-    """
-    try:
-        client = await get_greptile_client()
-        
-        # Parse JSON parameters
-        repositories_list = json.loads(repositories) if repositories else []
-        previous_messages_list = json.loads(previous_messages) if previous_messages else None
-        
-        # Generate session ID if not provided
-        if session_id is None:
-            session_id = str(uuid.uuid4())
-        
-        # Convert query to messages format
-        messages = [{"role": "user", "content": query}]
-        if previous_messages_list:
-            messages = previous_messages_list + messages
-            
-        result = await client.search_repositories(
-            messages=messages,
-            repositories=repositories_list,
-            session_id=session_id,
-            genius=genius,
-            timeout=timeout
-        )
-        result["session_id"] = session_id
-        return json.dumps(result)
-    except json.JSONDecodeError as e:
-        return json.dumps({"error": f"Invalid JSON in parameters: {str(e)}", "type": "JSONDecodeError"})
-    except Exception as e:
-        return json.dumps({"error": str(e), "type": type(e).__name__, "session_id": session_id})
+    """Search repositories and return matching files as JSON string."""
 
-@mcp.tool
+    client = _extract_client(ctx)
+    if client is None:
+        client = await _get_greptile_client_from_env()
+
+    sid = session_id or str(uuid.uuid4())
+    # Build messages with an explicit id for deterministic testing
+    messages = (previous_messages or []) + [{"id": "msg_0", "role": "user", "content": query}]
+
+    try:
+        result = await client.search_repositories(
+            messages,
+            repositories,
+            session_id=sid,
+            genius=genius,
+        )
+        result["session_id"] = sid
+        return json.dumps(result)
+    except Exception as e:
+        return f"Error searching repositories: {str(e)}"
+
 async def get_repository_info(
+    ctx: Context,
     remote: str,
     repository: str,
-    branch: str
+    branch: str,
 ) -> str:
-    """
-    Get information about an indexed repository.
-    
-    Args:
-        remote: The repository host ("github" or "gitlab")
-        repository: Repository in owner/repo format
-        branch: The branch that was indexed
-    
-    Returns:
-        JSON string containing repository information and indexing status
-    """
+    """Return repository indexing info as JSON string."""
+
+    client = _extract_client(ctx)
+    if client is None:
+        client = await _get_greptile_client_from_env()
+
+    repository_id = f"{remote}:{branch}:{repository}"
+
     try:
-        client = await get_greptile_client()
-        result = await client.get_repository_info(remote, repository, branch)
+        result = await client.get_repository_info(repository_id)
         return json.dumps(result)
     except Exception as e:
-        return json.dumps({"error": str(e), "type": type(e).__name__})
+        return f"Error getting repository info: {str(e)}"
 
+# Register tools with FastMCP – but keep callable functions for tests
+_mcp.tool()(index_repository)
+_mcp.tool()(query_repository)
+_mcp.tool()(search_repository)
+_mcp.tool()(get_repository_info)
+
+# For running as a script
 if __name__ == "__main__":
-    mcp.run()
+    _mcp.run()

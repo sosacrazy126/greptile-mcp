@@ -148,11 +148,20 @@ class GreptileClient:
         if session_id:
             payload["sessionId"] = session_id
 
-        client_timeout = timeout if timeout is not None else self.default_timeout
-        async with httpx.AsyncClient(timeout=client_timeout) as client:
-            response = await client.post(url, json=payload, headers=self.headers)
-            response.raise_for_status()
-            return response.json()
+        # Use the existing client instance so it can be easily patched in tests.
+        # Allow an optional per-request timeout to be specified.
+        request_kwargs: Dict[str, Any] = {
+            "json": payload,
+            "headers": self.headers,
+        }
+
+        # httpx supports passing a per-request timeout so we only include it if provided.
+        if timeout is not None:
+            request_kwargs["timeout"] = timeout
+
+        response = await self.client.post(url, **request_kwargs)
+        response.raise_for_status()
+        return response.json()
 
     async def stream_query_repositories(
         self,
