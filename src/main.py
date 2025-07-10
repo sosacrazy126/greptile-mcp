@@ -8,7 +8,7 @@ import asyncio
 import json
 import os
 import logging
-from typing import List, Dict, Any, Optional, AsyncGenerator, Union, Coroutine
+from typing import List, Dict, Any, Optional, AsyncGenerator, Union
 import uuid
 
 from src.utils import (
@@ -466,7 +466,7 @@ Happy coding! Use Greptile to understand any codebase and build features faster.
 """
     return help_text
 
-def format_messages_for_api(messages: List[Union[Dict, str]], current_query: str = None) -> List[Dict[str, str]]:
+def format_messages_for_api(messages: List[Union[Dict, str]], current_query: Optional[str] = None) -> List[Dict[str, str]]:
     """
     Format messages to match the Greptile API specification.
 
@@ -787,7 +787,7 @@ async def index_repository(
     Returns:
         Dictionary containing indexing status and information
     """
-    client = await get_greptile_client()
+    client = get_greptile_client()
     
     try:
         result = await client.index_repository(
@@ -850,7 +850,7 @@ async def get_repository_info(
     Returns:
         JSON string containing repository information and indexing status
     """
-    client = await get_greptile_client()
+    client = get_greptile_client()
 
     try:
         repository_id = f"{remote}:{branch}:{repository}"
