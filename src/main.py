@@ -8,7 +8,7 @@ import asyncio
 import json
 import os
 import logging
-from typing import List, Dict, Any, Optional, AsyncGenerator, Union
+from typing import List, Dict, Any, Optional, AsyncGenerator, Union, Coroutine
 import uuid
 
 from src.utils import (
@@ -750,7 +750,7 @@ async def index_repository(ctx: Context, remote: str, repository: str, branch: s
     except Exception as e:
         return f"Error indexing repository: {str(e)}"
 
-async def get_greptile_client() -> GreptileClient:
+async def get_greptile_client() -> Coroutine[Any, Any, GreptileClient]:
     """Get or create the Greptile client instance."""
     global _greptile_client
     if _greptile_client is None:
@@ -762,7 +762,7 @@ async def get_greptile_client() -> GreptileClient:
         if not github_token:
             raise ValueError("GITHUB_TOKEN environment variable is required")
             
-        _greptile_client = GreptileClient(api_key, github_token)
+        _greptile_client = get_greptile_client(api_key, github_token)
     
     return _greptile_client
 
@@ -805,57 +805,33 @@ async def index_repository(
 async def query_repository(
     ctx: Context,
     query: str,
-    repositories: str,  # JSON string instead of List[Dict[str, str]]
+    repositories: str,  # JSON string representation
     session_id: Optional[str] = None,
-    stream: bool = False,
     genius: bool = True,
-    timeout: Optional[float] = None,
-    previous_messages: Optional[str] = None  # JSON string instead of List[Dict[str, Any]]
-) -> str:  # Simplified return type
-    """
-    Search repositories to find relevant files without generating a full answer.
+    messages: Optional[List[Dict[str, str]]] = None,
+) -> Union[str, AsyncGenerator[str, None]]:
+    """Light-weight wrapper around `query_repository_advanced` that accepts the
+    original JSON-string parameters expected by Smithery."""
 
-    Args:
-        query: The search query about the codebase
-        repositories: JSON string of repositories to search (e.g., '[{"remote":"github","repository":"owner/repo","branch":"main"}]')
-        session_id: Optional session ID for conversation continuity
-        genius: Whether to use enhanced search capabilities (default: True)
-        timeout: Optional timeout for the request in seconds
-        previous_messages: Optional JSON string of previous messages for context
-
-    Returns:
-        JSON string containing relevant files and code references
-    """
-    client = await get_greptile_client()
-
-    # Parse JSON parameters
+    # Parse repositories JSON
     try:
-        repositories_list = json.loads(repositories) if repositories else []
-        previous_messages_list = json.loads(previous_messages) if previous_messages else None
-    except json.JSONDecodeError as e:
-        return json.dumps({"error": f"Invalid JSON in parameters: {str(e)}", "type": "JSONDecodeError"})
+        repos: List[Dict[str, str]] = json.loads(repositories) if isinstance(repositories, str) else repositories
+    except json.JSONDecodeError as exc:
+        return json.dumps({"error": f"Invalid repositories JSON: {exc}"})
 
-    # Generate session ID if not provided
-    if session_id is None:
-        session_id = str(uuid.uuid4())
+    # Build the messages list expected by the advanced endpoint
+    history: List[Dict[str, str]] = messages or []
+    history.append({"id": f"msg_{len(history)}", "content": query, "role": "user"})
 
-    try:
-        # Convert query to messages format
-        messages = [{"role": "user", "content": query}]
-        if previous_messages_list:
-            messages = previous_messages_list + messages
-
-        result = await client.search_repositories(
-            messages=messages,
-            repositories=repositories_list,
-            session_id=session_id,
-            genius=genius,
-            timeout=timeout
-        )
-        result["session_id"] = session_id
-        return json.dumps(result)
-    except Exception as e:
-        return json.dumps({"error": str(e), "type": type(e).__name__, "session_id": session_id})
+    return await query_repository_advanced(
+        ctx,
+        history,
+        repos,
+        session_id=session_id,
+        stream=False,
+        genius=genius,
+        timeout=None,
+    )
 
 @mcp.tool
 async def get_repository_info(
@@ -877,11 +853,8 @@ async def get_repository_info(
     client = await get_greptile_client()
 
     try:
-        result = await client.get_repository_info(
-            remote=remote,
-            repository=repository,
-            branch=branch
-        )
+        repository_id = f"{remote}:{branch}:{repository}"
+        result = await client.get_repository_info(repository_id)
         return json.dumps(result)
     except Exception as e:
         return json.dumps({"error": str(e), "type": type(e).__name__})
