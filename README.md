@@ -128,16 +128,190 @@ To deploy using Smithery:
 
 ## Running the Server
 
-### Using pip
+The Greptile MCP server supports two modes of operation:
+
+### 1. MCP Mode (Default)
+
+Traditional MCP server for direct MCP client integration.
+
+#### Using pip
 
 ```bash
 python -m src.main
 ```
 
-### Using Docker
+#### Using Docker
 
 ```bash
 docker run --rm -e GREPTILE_API_KEY=your_key -e GITHUB_TOKEN=your_token -p 8050:8050 greptile-mcp
+```
+
+### 2. HTTP/JSON-RPC Mode (New)
+
+HTTP server providing JSON-RPC 2.0 interface for web applications and REST clients.
+
+#### Using pip
+
+```bash
+python -m src.main_http
+```
+
+#### Using Docker (HTTP Mode)
+
+```bash
+docker run --rm -e GREPTILE_API_KEY=your_key -e GITHUB_TOKEN=your_token -p 8080:8080 greptile-mcp python -m src.main_http
+```
+
+#### Development Mode (with auto-reload)
+
+```bash
+python -m src.main_http --dev
+```
+
+### HTTP Mode Features
+
+- **JSON-RPC 2.0 compliant** API at `/json-rpc`
+- **Interactive documentation** at `/docs` (Swagger UI)
+- **Alternative documentation** at `/redoc`
+- **Health check** endpoint at `/health`
+- **Method documentation** at `/api/methods`
+- **Rate limiting** (100 requests/hour per IP)
+- **CORS support** for web applications
+
+### HTTP Usage Examples
+
+#### Using curl
+
+```bash
+# Index a repository
+curl -X POST http://localhost:8080/json-rpc \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "index_repository",
+    "params": {
+      "remote": "github",
+      "repository": "facebook/react",
+      "branch": "main"
+    },
+    "id": "1"
+  }'
+
+# Query a repository
+curl -X POST http://localhost:8080/json-rpc \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "query_repository",
+    "params": {
+      "query": "How does useState work?",
+      "repositories": [
+        {
+          "remote": "github",
+          "repository": "facebook/react",
+          "branch": "main"
+        }
+      ]
+    },
+    "id": "2"
+  }'
+```
+
+#### Using JavaScript/fetch
+
+```javascript
+// Index a repository
+const indexResponse = await fetch('http://localhost:8080/json-rpc', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'index_repository',
+    params: {
+      remote: 'github',
+      repository: 'facebook/react',
+      branch: 'main'
+    },
+    id: '1'
+  })
+});
+
+const indexResult = await indexResponse.json();
+console.log('Index result:', indexResult);
+
+// Query the repository
+const queryResponse = await fetch('http://localhost:8080/json-rpc', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'query_repository',
+    params: {
+      query: 'How does the component lifecycle work?',
+      repositories: [
+        {
+          remote: 'github',
+          repository: 'facebook/react',
+          branch: 'main'
+        }
+      ]
+    },
+    id: '2'
+  })
+});
+
+const queryResult = await queryResponse.json();
+console.log('Query result:', queryResult);
+```
+
+#### Using Python requests
+
+```python
+import requests
+import json
+
+# Configuration
+base_url = "http://localhost:8080/json-rpc"
+headers = {"Content-Type": "application/json"}
+
+# Index a repository
+index_payload = {
+    "jsonrpc": "2.0",
+    "method": "index_repository",
+    "params": {
+        "remote": "github",
+        "repository": "facebook/react",
+        "branch": "main"
+    },
+    "id": "1"
+}
+
+response = requests.post(base_url, headers=headers, json=index_payload)
+print("Index result:", response.json())
+
+# Query the repository
+query_payload = {
+    "jsonrpc": "2.0",
+    "method": "query_repository",
+    "params": {
+        "query": "Explain React hooks",
+        "repositories": [
+            {
+                "remote": "github",
+                "repository": "facebook/react",
+                "branch": "main"
+            }
+        ]
+    },
+    "id": "2"
+}
+
+response = requests.post(base_url, headers=headers, json=query_payload)
+print("Query result:", response.json())
 ```
 
 ## Integration with MCP Clients
