@@ -750,57 +750,6 @@ async def index_repository(ctx: Context, remote: str, repository: str, branch: s
     except Exception as e:
         return f"Error indexing repository: {str(e)}"
 
-async def get_greptile_client() -> Coroutine[Any, Any, GreptileClient]:
-    """Get or create the Greptile client instance."""
-    global _greptile_client
-    if _greptile_client is None:
-        api_key = os.getenv("GREPTILE_API_KEY")
-        github_token = os.getenv("GITHUB_TOKEN")
-        
-        if not api_key:
-            raise ValueError("GREPTILE_API_KEY environment variable is required")
-        if not github_token:
-            raise ValueError("GITHUB_TOKEN environment variable is required")
-            
-        _greptile_client = get_greptile_client(api_key, github_token)
-    
-    return _greptile_client
-
-@mcp.tool
-async def index_repository(
-    remote: str,
-    repository: str, 
-    branch: str,
-    reload: bool = False,
-    notify: bool = False
-) -> str:
-    """
-    Index a repository for code search and querying.
-    
-    Args:
-        remote: The repository host ("github" or "gitlab")
-        repository: Repository in owner/repo format (e.g., "greptileai/greptile")
-        branch: The branch to index (e.g., "main")
-        reload: Whether to force reprocessing of a previously indexed repository
-        notify: Whether to send an email notification when indexing is complete
-    
-    Returns:
-        Dictionary containing indexing status and information
-    """
-    client = get_greptile_client()
-    
-    try:
-        result = await client.index_repository(
-            remote=remote,
-            repository=repository,
-            branch=branch,
-            reload=reload,
-            notify=notify
-        )
-        return json.dumps(result)
-    except Exception as e:
-        return json.dumps({"error": str(e), "type": type(e).__name__})
-
 @mcp.tool
 async def query_repository(
     ctx: Context,
