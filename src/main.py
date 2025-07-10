@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from mcp.server.fastmcp import FastMCP, Context
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
