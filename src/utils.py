@@ -78,7 +78,7 @@ class GreptileClient:
         remote: str, 
         repository: str, 
         branch: str, 
-        reload: bool = False, 
+        reload: bool = True, 
         notify: bool = False
     ) -> Dict[str, Any]:
         """
@@ -88,8 +88,9 @@ class GreptileClient:
             remote: The repository host, either "github" or "gitlab"
             repository: The repository in owner/repo format
             branch: The branch to index
-            reload: Whether to force reprocessing
-            notify: Whether to send an email notification
+            reload: Whether to force reprocessing (default: True).
+                   When False, won't reprocess if previously indexed successfully.
+            notify: Whether to send an email notification (default: False)
 
         Returns:
             The API response as a dictionary
@@ -206,7 +207,8 @@ class GreptileClient:
         messages: List[Dict[str, Any]],
         repositories: List[Dict[str, Any]],
         session_id: Optional[str] = None,
-        genius: bool = True
+        genius: bool = True,
+        timeout: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Search repositories for relevant files without generating a full answer.
@@ -216,6 +218,7 @@ class GreptileClient:
             repositories: List of repository objects
             session_id: Optional session ID for continuing a conversation
             genius: Whether to use enhanced search capabilities
+            timeout: Optional request timeout in seconds
 
         Returns:
             The API response as a dictionary
@@ -230,20 +233,25 @@ class GreptileClient:
         if session_id:
             payload["sessionId"] = session_id
 
-        response = await self.client.post(url, json=payload, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        client_timeout = timeout if timeout is not None else self.default_timeout
+        async with httpx.AsyncClient(timeout=client_timeout) as client:
+            response = await client.post(url, json=payload, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
 
-    async def get_repository_info(self, repository_id: str) -> Dict[str, Any]:
+    async def get_repository_info(self, remote: str, repository: str, branch: str) -> Dict[str, Any]:
         """
         Get information about an indexed repository.
 
         Args:
-            repository_id: Repository ID in the format "remote:branch:owner/repository"
+            remote: The repository host ("github" or "gitlab")
+            repository: Repository in owner/repo format
+            branch: The branch that was indexed
 
         Returns:
             The API response as a dictionary
         """
+        repository_id = f"{remote}:{branch}:{repository}"
         encoded_id = urllib.parse.quote_plus(repository_id, safe='')
         url = f"{self.base_url}/repositories/{encoded_id}"
 
