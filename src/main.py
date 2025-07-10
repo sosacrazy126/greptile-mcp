@@ -9,6 +9,7 @@ import json
 import os
 import logging
 from typing import List, Dict, Any, Optional, AsyncGenerator, Union
+import uuid
 
 from src.utils import (
     get_greptile_client,
@@ -748,6 +749,7 @@ async def index_repository(ctx: Context, remote: str, repository: str, branch: s
         return json.dumps(result, indent=2)
     except Exception as e:
         return f"Error indexing repository: {str(e)}"
+
 async def get_greptile_client() -> GreptileClient:
     """Get or create the Greptile client instance."""
     global _greptile_client
