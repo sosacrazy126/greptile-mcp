@@ -8,6 +8,13 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Optional, Any, Dict, List, Union
 
+# Import logging after avoiding circular imports
+try:
+    from src.logging_config import logger, APICallLogger
+except ImportError:
+    # Fallback to basic logging if circular import
+    logger = logging.getLogger(__name__)
+
 ###############################################################################
 # Session Management Utilities
 ###############################################################################
@@ -104,9 +111,27 @@ class GreptileClient:
             "notify": notify
         }
 
-        response = await self.client.post(url, json=payload, headers=self.headers)
-        response.raise_for_status()
-        return response.json()
+        try:
+            logger.debug(f"Making API call to {url}", payload=payload)
+            response = await self.client.post(url, json=payload, headers=self.headers)
+            response.raise_for_status()
+            result = response.json()
+            logger.debug(f"API call successful", status_code=response.status_code)
+            return result
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error during repository indexing",
+                status_code=e.response.status_code,
+                response_text=e.response.text,
+                url=url
+            )
+            raise
+        except httpx.RequestError as e:
+            logger.error(f"Request error during repository indexing", error=str(e), url=url)
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error during repository indexing", error=str(e), url=url)
+            raise
 
     async def query_repositories(
         self,

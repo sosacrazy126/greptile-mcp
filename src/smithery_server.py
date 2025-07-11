@@ -14,8 +14,16 @@ from contextlib import asynccontextmanager
 import asyncio
 
 # Import only the tool definitions/metadata, not the context or lifespan
-from src.main import mcp as greptile_mcp, GreptileContext
-from src.utils import get_greptile_client
+from src.main import mcp as greptile_mcp
+from src.utils import get_greptile_client, GreptileClient
+from dataclasses import dataclass
+
+# Simple context class for compatibility
+@dataclass
+class GreptileContext:
+    """Simple context for the Greptile MCP server."""
+    greptile_client: GreptileClient
+    initialized: bool = False
 
 # Create FastAPI app (without custom lifespan event)
 app = FastAPI()
@@ -69,19 +77,19 @@ def merge_config_from_request(request: Request) -> Dict[str, Any]:
 
 async def list_tools_response():
     """Helper function to construct the tools list response for /mcp and /tools endpoints."""
-    # Use the FastMCP's list_tools method which is async
-    tool_list = await greptile_mcp.list_tools()
-    
+    # Use the FastMCP's get_tools method which returns a dict of tools
+    tools_dict = await greptile_mcp.get_tools()
+
     # Convert the Tool objects to the format expected by Smithery
     tools = []
-    for tool in tool_list:
+    for tool_name, tool in tools_dict.items():
         tool_data = {
-            "name": tool.name,
+            "name": tool_name,
             "description": tool.description,
-            "inputSchema": tool.inputSchema
+            "inputSchema": tool.parameters
         }
         tools.append(tool_data)
-    
+
     return {
         "capabilities": {
             "tools": True,
