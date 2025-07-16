@@ -26,7 +26,7 @@ mcp = FastMCP(
 _greptile_client: Optional[GreptileClient] = None
 
 async def get_greptile_client() -> GreptileClient:
-    """Get or create the Greptile client instance."""
+    """Get or create the Greptile client instance (lazy loading)."""
     global _greptile_client
     if _greptile_client is None:
         api_key = os.getenv("GREPTILE_API_KEY")
@@ -34,16 +34,20 @@ async def get_greptile_client() -> GreptileClient:
 
         if not api_key:
             logger.error("Missing GREPTILE_API_KEY environment variable")
-            raise ValueError("GREPTILE_API_KEY environment variable is required")
+            raise ValueError("GREPTILE_API_KEY environment variable is required for tool execution")
         if not github_token:
             logger.error("Missing GITHUB_TOKEN environment variable")
-            raise ValueError("GITHUB_TOKEN environment variable is required")
+            raise ValueError("GITHUB_TOKEN environment variable is required for tool execution")
 
-        logger.info("Initializing Greptile client")
+        logger.info("Initializing Greptile client (lazy loading)")
         _greptile_client = GreptileClient(api_key, github_token)
         logger.info("Greptile client initialized successfully")
 
     return _greptile_client
+
+def validate_api_keys_available() -> bool:
+    """Check if required API keys are available without raising errors."""
+    return bool(os.getenv("GREPTILE_API_KEY") and os.getenv("GITHUB_TOKEN"))
 
 @mcp.tool
 @log_execution_time("index_repository")

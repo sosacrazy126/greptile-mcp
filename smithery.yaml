@@ -6,9 +6,7 @@ startCommand:
   type: http
   configSchema:
     type: object
-    required:
-      - GREPTILE_API_KEY
-      - GITHUB_TOKEN
+    required: []
     properties:
       GREPTILE_API_KEY:
         type: string
@@ -28,8 +26,8 @@ startCommand:
       command: 'python',
       args: ['-m', 'src.smithery_server'],
       env: {
-        GREPTILE_API_KEY: config.GREPTILE_API_KEY,
-        GITHUB_TOKEN: config.GITHUB_TOKEN,
+        GREPTILE_API_KEY: config.GREPTILE_API_KEY || "",
+        GITHUB_TOKEN: config.GITHUB_TOKEN || "",
         GREPTILE_BASE_URL: config.GREPTILE_BASE_URL || "https://api.greptile.com/v2",
         PORT: process.env.PORT || "8080"
       }

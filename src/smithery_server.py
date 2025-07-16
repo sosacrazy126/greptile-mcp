@@ -73,26 +73,138 @@ def merge_config_from_request(request: Request) -> Dict[str, Any]:
 
 async def list_tools_response():
     """Helper function to construct the tools list response for /mcp and /tools endpoints."""
-    # Use the FastMCP's get_tools method which returns a dict of tools
-    tools_dict = await greptile_mcp.get_tools()
+    print(f"[DEBUG] Starting tool discovery phase")
+    
+    try:
+        # Use a timeout to ensure tool discovery doesn't hang
+        import asyncio
+        
+        async def get_tools_with_timeout():
+            return await greptile_mcp.get_tools()
+        
+        print(f"[DEBUG] Calling greptile_mcp.get_tools() with timeout")
+        tools_dict = await asyncio.wait_for(get_tools_with_timeout(), timeout=10.0)
+        print(f"[DEBUG] Retrieved {len(tools_dict)} tools")
 
-    # Convert the Tool objects to the format expected by Smithery
-    tools = []
-    for tool_name, tool in tools_dict.items():
-        tool_data = {
-            "name": tool_name,
-            "description": tool.description,
-            "inputSchema": tool.parameters
+        # Convert the Tool objects to the format expected by Smithery
+        tools = []
+        for tool_name, tool in tools_dict.items():
+            print(f"[DEBUG] Processing tool: {tool_name}")
+            tool_data = {
+                "name": tool_name,
+                "description": tool.description,
+                "inputSchema": tool.parameters
+            }
+            tools.append(tool_data)
+            print(f"[DEBUG] Added tool: {tool_name}")
+
+        response = {
+            "capabilities": {
+                "tools": True,
+                "resources": True,
+                "prompts": False
+            },
+            "tools": tools
         }
-        tools.append(tool_data)
+        
+        print(f"[DEBUG] Tool discovery completed successfully with {len(tools)} tools")
+        return response
+        
+    except asyncio.TimeoutError:
+        print(f"[ERROR] Tool discovery timed out after 10 seconds")
+        return await get_fallback_tools_response()
+        
+    except Exception as e:
+        print(f"[ERROR] Tool discovery failed: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return await get_fallback_tools_response()
 
+async def get_fallback_tools_response():
+    """Fallback response when tool discovery fails."""
+    print(f"[DEBUG] Using fallback tool definitions")
+    
+    # Define static tool definitions that don't require client initialization
+    fallback_tools = [
+        {
+            "name": "index_repository",
+            "description": "Index a repository for code search and querying",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "remote": {"type": "string", "description": "Repository host (github or gitlab)"},
+                    "repository": {"type": "string", "description": "Repository in owner/repo format"},
+                    "branch": {"type": "string", "description": "Branch to index"},
+                    "reload": {"type": "boolean", "description": "Force reprocessing", "default": False},
+                    "notify": {"type": "boolean", "description": "Send email notification", "default": False}
+                },
+                "required": ["remote", "repository", "branch"]
+            }
+        },
+        {
+            "name": "query_repository",
+            "description": "Query repositories using natural language",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Natural language query"},
+                    "repositories": {"type": "string", "description": "JSON string of repositories"},
+                    "session_id": {"type": "string", "description": "Session ID for continuity"},
+                    "stream": {"type": "boolean", "description": "Enable streaming", "default": False},
+                    "genius": {"type": "boolean", "description": "Use enhanced query", "default": True}
+                },
+                "required": ["query", "repositories"]
+            }
+        },
+        {
+            "name": "search_repository",
+            "description": "Search repositories for relevant files",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query"},
+                    "repositories": {"type": "string", "description": "JSON string of repositories"},
+                    "session_id": {"type": "string", "description": "Session ID for continuity"},
+                    "genius": {"type": "boolean", "description": "Use enhanced search", "default": True}
+                },
+                "required": ["query", "repositories"]
+            }
+        },
+        {
+            "name": "get_repository_info",
+            "description": "Get information about an indexed repository",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "remote": {"type": "string", "description": "Repository host (github or gitlab)"},
+                    "repository": {"type": "string", "description": "Repository in owner/repo format"},
+                    "branch": {"type": "string", "description": "Branch that was indexed"}
+                },
+                "required": ["remote", "repository", "branch"]
+            }
+        },
+        {
+            "name": "greptile_help",
+            "description": "Get comprehensive help and usage guidance",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "learning_level": {"type": "string", "description": "Learning level (beginner, intermediate, advanced)", "default": "beginner"},
+                    "context_type": {"type": "string", "description": "Context type (discovery, patterns, workflows, integration)", "default": "discovery"},
+                    "focus_area": {"type": "string", "description": "Focus area (general, architectural, consultation, session_management)", "default": "general"}
+                }
+            }
+        }
+    ]
+    
     return {
         "capabilities": {
             "tools": True,
-            "resources": False,
+            "resources": True,
             "prompts": False
         },
-        "tools": tools
+        "tools": fallback_tools
     }
 
 @app.get("/mcp")
