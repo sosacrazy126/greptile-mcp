@@ -127,6 +127,11 @@ Required environment variables:
 - FastMCP handles the MCP protocol details, allowing focus on business logic in services and handlers
 - Repository indexing is asynchronous - use `get_repository_info` to check status
 - Session IDs are auto-generated if not provided but should be maintained by clients for conversation continuity
-- Streaming responses are supported but currently collected into complete responses for tool compatibility
+- **Enhanced Streaming Support**: Real-time Server-Sent Events (SSE) processing with structured chunk handling
+- **Streaming Features**: Live text chunks, real-time citations, session management, and performance metadata
 - The refactored architecture maintains full backward compatibility while improving maintainability and testability
 - Use `greptile_help` tool to get comprehensive usage documentation and examples
+
+## Ongoing Development Features
+
+- Add these new features

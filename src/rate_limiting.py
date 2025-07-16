@@ -71,7 +71,7 @@ class RateLimiter:
             if len(state.minute_requests) >= self.config.requests_per_minute:
                 retry_after = 60 - (current_time - state.minute_requests[0])
                 logger.warning(
-                    f"Rate limit exceeded (per-minute)",
+                    "Rate limit exceeded (per-minute)",
                     identifier=identifier,
                     requests_in_minute=len(state.minute_requests),
                     limit=self.config.requests_per_minute,
@@ -83,7 +83,7 @@ class RateLimiter:
             if len(state.hour_requests) >= self.config.requests_per_hour:
                 retry_after = 3600 - (current_time - state.hour_requests[0])
                 logger.warning(
-                    f"Rate limit exceeded (per-hour)",
+                    "Rate limit exceeded (per-hour)",
                     identifier=identifier,
                     requests_in_hour=len(state.hour_requests),
                     limit=self.config.requests_per_hour,
@@ -98,7 +98,7 @@ class RateLimiter:
                 if state.consecutive_requests > self.config.burst_limit:
                     retry_after = self.config.cooldown_seconds
                     logger.warning(
-                        f"Burst limit exceeded",
+                        "Burst limit exceeded",
                         identifier=identifier,
                         consecutive_requests=state.consecutive_requests,
                         burst_limit=self.config.burst_limit,
@@ -114,7 +114,7 @@ class RateLimiter:
             state.last_request_time = current_time
             
             logger.debug(
-                f"Request allowed",
+                "Request allowed",
                 identifier=identifier,
                 requests_in_minute=len(state.minute_requests),
                 requests_in_hour=len(state.hour_requests)
@@ -183,7 +183,7 @@ class AdaptiveRateLimiter(RateLimiter):
                         2.0  # Max 2x the base limit
                     )
                     logger.debug(
-                        f"Increased rate limit multiplier",
+                        "Increased rate limit multiplier",
                         identifier=identifier,
                         multiplier=self.adaptive_multipliers[identifier]
                     )
@@ -203,7 +203,7 @@ class AdaptiveRateLimiter(RateLimiter):
                 )
                 
                 logger.warning(
-                    f"Decreased rate limit multiplier due to API error",
+                    "Decreased rate limit multiplier due to API error",
                     identifier=identifier,
                     multiplier=self.adaptive_multipliers[identifier],
                     status_code=status_code
@@ -268,7 +268,7 @@ async def rate_limited_request(identifier: str):
     
     if not allowed:
         logger.warning(
-            f"Request blocked by rate limiter",
+            "Request blocked by rate limiter",
             identifier=identifier,
             retry_after=retry_after
         )

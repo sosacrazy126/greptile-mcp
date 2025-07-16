@@ -5,17 +5,13 @@ import base64
 import json
 import os
 from typing import Optional, Dict, Any
-from urllib.parse import parse_qs
 
-from fastapi import FastAPI, Request, Response, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
-import httpx
-from contextlib import asynccontextmanager
-import asyncio
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
 
 # Import only the tool definitions/metadata, not the context or lifespan
 from src.main import mcp as greptile_mcp
-from src.utils import get_greptile_client, GreptileClient
+from src.utils import GreptileClient
 from dataclasses import dataclass
 
 # Simple context class for compatibility
@@ -240,7 +236,13 @@ async def mcp_execute_tool(request: Request):
 
     # Initialize Greptile client/context only now (lazy)
     try:
-        greptile_client = get_greptile_client()
+        api_key = os.getenv("GREPTILE_API_KEY")
+        github_token = os.getenv("GITHUB_TOKEN")
+        
+        if not api_key or not github_token:
+            raise ValueError("Missing required environment variables: GREPTILE_API_KEY and GITHUB_TOKEN")
+        
+        greptile_client = GreptileClient(api_key, github_token)
         greptile_context = GreptileContext(
             greptile_client=greptile_client,
             initialized=True

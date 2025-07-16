@@ -5,12 +5,13 @@ import typing
 import uuid
 import asyncio
 import logging
+import time
 from collections.abc import AsyncGenerator
-from typing import Optional, Any, Dict, List, Union
+from typing import Optional, Any, Dict, List
 
 # Import logging after avoiding circular imports
 try:
-    from src.logging_config import logger, APICallLogger
+    from src.logging_config import logger
 except ImportError:
     # Fallback to basic logging if circular import
     logger = logging.getLogger(__name__)
@@ -47,8 +48,29 @@ class SessionManager:
             self.sessions.pop(session_id, None)
 
 def generate_session_id() -> str:
-    """Generate a new unique session ID."""
-    return str(uuid.uuid4())
+    """
+    Generate a new unique session ID in proper UUID format.
+    
+    Returns:
+        str: A properly formatted UUID string (e.g., '12345678-1234-1234-1234-123456789abc')
+    """
+    session_id = str(uuid.uuid4())
+    # Ensure it's in lowercase for consistency
+    return session_id.lower()
+
+def normalize_session_id(session_id: Optional[str]) -> Optional[str]:
+    """
+    Normalize a session ID to ensure consistent format.
+    
+    Args:
+        session_id: The session ID to normalize
+        
+    Returns:
+        str: Normalized session ID in lowercase, or None if input was None
+    """
+    if session_id is None:
+        return None
+    return session_id.lower().strip()
 
 ###############################################################################
 # Greptile API Client
@@ -116,21 +138,21 @@ class GreptileClient:
             response = await self.client.post(url, json=payload, headers=self.headers)
             response.raise_for_status()
             result = response.json()
-            logger.debug(f"API call successful", status_code=response.status_code)
+            logger.debug("API call successful", status_code=response.status_code)
             return result
         except httpx.HTTPStatusError as e:
             logger.error(
-                f"HTTP error during repository indexing",
+                "HTTP error during repository indexing",
                 status_code=e.response.status_code,
                 response_text=e.response.text,
                 url=url
             )
             raise
         except httpx.RequestError as e:
-            logger.error(f"Request error during repository indexing", error=str(e), url=url)
+            logger.error("Request error during repository indexing", error=str(e), url=url)
             raise
         except Exception as e:
-            logger.error(f"Unexpected error during repository indexing", error=str(e), url=url)
+            logger.error("Unexpected error during repository indexing", error=str(e), url=url)
             raise
 
     async def query_repositories(
@@ -188,7 +210,7 @@ class GreptileClient:
         timeout: Optional[float] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        Streams the Greptile /query endpoint using chunked responses.
+        Streams the Greptile /query endpoint using Server-Sent Events (SSE).
 
         Args:
             messages: List of message objects with role and content
@@ -198,7 +220,7 @@ class GreptileClient:
             timeout: Optional request timeout in seconds
 
         Yields:
-            Parsed chunked message objects as dictionaries.
+            Structured chunk data including text content, citations, and metadata.
         """
         url = f"{self.base_url}/query"
         payload = {
@@ -210,21 +232,59 @@ class GreptileClient:
         if session_id:
             payload["sessionId"] = session_id
 
+        # Use streaming-specific headers
+        headers = {
+            **self.headers,
+            "Accept": "text/event-stream",
+            "Cache-Control": "no-cache"
+        }
+
         req_timeout = timeout if timeout is not None else self.default_timeout
         async with httpx.AsyncClient(timeout=req_timeout) as client:
-            async with client.stream("POST", url, json=payload, headers=self.headers) as response:
+            async with client.stream("POST", url, json=payload, headers=headers) as response:
                 response.raise_for_status()
+                
+                # Process Server-Sent Events
                 async for line in response.aiter_lines():
-                    if line:
+                    if line and line.strip():
                         try:
-                            # Some APIs may prefix with data:, etc.; strip it if needed
-                            raw = line
-                            if raw.startswith("data: "):
-                                raw = raw[6:]
-                            chunk = typing.cast(Dict[str, Any], __safe_json_loads(raw))
-                            yield chunk
+                            # Parse SSE format: "data: {json}"
+                            if line.startswith("data: "):
+                                raw = line[6:]  # Remove "data: " prefix
+                                chunk = __safe_json_loads(raw)
+                                
+                                # Yield structured chunk data
+                                if chunk:
+                                    chunk_type = chunk.get("type")
+                                    if chunk_type == "text":
+                                        yield {
+                                            "type": "text",
+                                            "content": chunk.get("content", ""),
+                                            "timestamp": time.time()
+                                        }
+                                    elif chunk_type == "citation":
+                                        yield {
+                                            "type": "citation",
+                                            "file": chunk.get("file"),
+                                            "lines": chunk.get("lines"),
+                                            "timestamp": time.time()
+                                        }
+                                    elif "sessionId" in chunk:
+                                        yield {
+                                            "type": "session",
+                                            "sessionId": chunk["sessionId"],
+                                            "timestamp": time.time()
+                                        }
+                                    else:
+                                        # Forward other chunk types as-is
+                                        yield {
+                                            "type": "other",
+                                            "data": chunk,
+                                            "timestamp": time.time()
+                                        }
+                                        
                         except Exception:
-                            # Optionally log/handle parse errors per chunk here
+                            # Skip malformed chunks but continue streaming
                             continue
 
     async def search_repositories(

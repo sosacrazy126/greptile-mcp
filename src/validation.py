@@ -7,7 +7,7 @@ standardized error handling patterns.
 
 import re
 import json
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
@@ -54,8 +54,8 @@ class InputValidator:
     # Branch name pattern (Git-compatible)
     BRANCH_PATTERN = re.compile(r'^[a-zA-Z0-9._/-]+$')
     
-    # Session ID pattern (UUID format)
-    SESSION_ID_PATTERN = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    # Session ID pattern (UUID format, case-insensitive)
+    SESSION_ID_PATTERN = re.compile(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
     
     @staticmethod
     def validate_remote(remote: str) -> ValidationResult:
@@ -251,9 +251,12 @@ class InputValidator:
             result.add_error(f"Session ID must be a string, got {type(session_id).__name__}")
             return result
         
-        if not InputValidator.SESSION_ID_PATTERN.match(session_id):
+        # Normalize the session ID for validation (trim whitespace, normalize case)
+        normalized_session_id = session_id.strip()
+        
+        if not InputValidator.SESSION_ID_PATTERN.match(normalized_session_id):
             result.add_error(
-                f"Session ID must be a valid UUID format. "
+                f"Session ID must be a valid UUID format (e.g., '12345678-1234-1234-1234-123456789abc'). "
                 f"Got: '{session_id}'"
             )
         
