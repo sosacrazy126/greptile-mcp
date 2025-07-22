@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y \
 COPY . .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e . && \
+    pip install --no-cache-dir fastapi>=0.116.0
 
 # Run the Smithery HTTP server
 CMD ["python", "-m", "src.smithery_server"]

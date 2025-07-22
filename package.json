@@ -1,0 +1,18 @@
+{
+  "name": "greptile-mcp",
+  "version": "1.0.0",
+  "description": "Natural language code search and analysis across multiple repositories",
+  "main": "src/smithery_server.py",
+  "scripts": {
+    "start": "python -m src.smithery_server",
+    "dev": "python -m src.smithery_server"
+  },
+  "keywords": [
+    "code-search",
+    "greptile",
+    "repository-analysis",
+    "mcp"
+  ],
+  "author": "sosacrazy126",
+  "license": "MIT"
+}
