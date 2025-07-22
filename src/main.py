@@ -9,18 +9,92 @@ import asyncio
 import uuid
 import json
 import time
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from fastmcp import FastMCP
 from src.utils import GreptileClient, generate_session_id, normalize_session_id
 from src.validation import InputValidator, create_error_response
 from src.logging_config import logger, log_execution_time, APICallLogger
 from src.rate_limiting import rate_limited_request, RateLimitExceeded
+from src.orchestration.tools import (
+    analyze_codebase_feature,
+    compare_codebase_patterns,
+    explore_codebase_autonomous
+)
+from src.flow_enhancement import (
+    ContinuationPromptsGenerator,
+    SessionPersistenceManager
+)
 
 # Create the modern MCP server
 mcp = FastMCP(
     name="Greptile MCP Server",
     instructions="Modern MCP server for code search and querying with Greptile API"
 )
+
+# Initialize flow enhancement components
+continuation_generator = ContinuationPromptsGenerator()
+session_manager = SessionPersistenceManager()
+
+def enhance_response_with_flow_guidance(
+    response_dict: Dict[str, Any],
+    query: str,
+    session_id: Optional[str],
+    tool_name: str = "query_repository"
+) -> Dict[str, Any]:
+    """
+    Enhance response with dynamic continuation prompts and session guidance.
+    Breaks the one-loop pattern by encouraging deeper exploration.
+    
+    Args:
+        response_dict: Original response dictionary
+        query: The query that was processed
+        session_id: Session ID for continuity tracking
+        tool_name: Name of the tool that generated the response
+        
+    Returns:
+        Enhanced response dictionary with flow guidance
+    """
+    if not session_id:
+        session_id = generate_session_id()
+        response_dict["session_id"] = session_id
+    
+    # Get response content for context analysis
+    response_content = response_dict.get("message", "")
+    
+    # Track session activity
+    domains = continuation_generator.identify_domain_focus(query, response_content)
+    session_metadata = session_manager.track_session_query(session_id, query, domains, response_content)
+    
+    # Generate continuation prompts
+    continuation_prompts = continuation_generator.generate_continuation_prompts(
+        query=query,
+        response_content=response_content,
+        session_id=session_id,
+        query_count=session_metadata.query_count
+    )
+    
+    # Format and append flow guidance to the response message
+    flow_guidance = continuation_generator.format_for_response(continuation_prompts)
+    session_guidance = session_manager.format_persistence_guidance(session_id)
+    
+    # Enhance the response message
+    enhanced_message = response_content + flow_guidance + "\n" + session_guidance
+    response_dict["message"] = enhanced_message
+    
+    # Add flow enhancement metadata
+    response_dict["flow_enhancement"] = {
+        "session_metadata": {
+            "session_id": session_id,
+            "query_count": session_metadata.query_count,
+            "domains_explored": session_metadata.exploration_domains,
+            "depth_achieved": session_metadata.depth_achieved
+        },
+        "continuation_available": True,
+        "compound_learning_active": session_metadata.query_count > 1,
+        "exploration_momentum": continuation_prompts["depth_info"]["level_name"]
+    }
+    
+    return response_dict
 
 # Global client instance (will be initialized on first use)
 _greptile_client: Optional[GreptileClient] = None
@@ -167,7 +241,7 @@ async def index_repository(
 @log_execution_time("query_repository")
 async def query_repository(
     query: str,
-    repositories: str,  # JSON string instead of List[Dict[str, str]]
+    repositories: Optional[str] = None,  # JSON string, optional if session exists
     session_id: Optional[str] = None,
     stream: bool = False,
     genius: bool = True,
@@ -195,10 +269,16 @@ async def query_repository(
         logger.log_validation_error("query", "; ".join(query_result.errors), query=query)
         return create_error_response("; ".join(query_result.errors), "ValidationError", session_id=session_id)
 
-    repositories_result, repositories_list = InputValidator.validate_repositories_json(repositories)
-    if not repositories_result.is_valid:
-        logger.log_validation_error("repositories", "; ".join(repositories_result.errors), repositories=repositories)
-        return create_error_response("; ".join(repositories_result.errors), "ValidationError", session_id=session_id)
+    # Only validate repositories if provided (optional for session-based queries)
+    repositories_list = []
+    if repositories is not None:
+        repositories_result, repositories_list = InputValidator.validate_repositories_json(repositories)
+        if not repositories_result.is_valid:
+            logger.log_validation_error("repositories", "; ".join(repositories_result.errors), repositories=repositories)
+            return create_error_response("; ".join(repositories_result.errors), "ValidationError", session_id=session_id)
+    elif session_id is None:
+        # If no repositories and no session, we can't proceed
+        return create_error_response("Either repositories or session_id must be provided", "ValidationError")
 
     session_result = InputValidator.validate_session_id(session_id)
     if not session_result.is_valid:
@@ -335,7 +415,9 @@ async def query_repository(
                 sources_count=len(result.get("sources", []))
             )
 
-        return json.dumps(result)
+        # Enhance response with flow guidance to break the one-loop pattern
+        enhanced_result = enhance_response_with_flow_guidance(result, query, session_id, "query_repository")
+        return json.dumps(enhanced_result)
 
     except Exception as e:
         logger.log_exception(
@@ -349,7 +431,7 @@ async def query_repository(
 @mcp.tool
 async def search_repository(
     query: str,
-    repositories: str,  # JSON string instead of List[Dict[str, str]]
+    repositories: Optional[str] = None,  # JSON string, optional if session exists
     session_id: Optional[str] = None,
     genius: bool = True,
     timeout: Optional[float] = None,
@@ -374,9 +456,15 @@ async def search_repository(
     if not query_result.is_valid:
         return create_error_response("; ".join(query_result.errors), "ValidationError", session_id=session_id)
 
-    repositories_result, repositories_list = InputValidator.validate_repositories_json(repositories)
-    if not repositories_result.is_valid:
-        return create_error_response("; ".join(repositories_result.errors), "ValidationError", session_id=session_id)
+    # Only validate repositories if provided (optional for session-based queries)
+    repositories_list = []
+    if repositories is not None:
+        repositories_result, repositories_list = InputValidator.validate_repositories_json(repositories)
+        if not repositories_result.is_valid:
+            return create_error_response("; ".join(repositories_result.errors), "ValidationError", session_id=session_id)
+    elif session_id is None:
+        # If no repositories and no session, we can't proceed
+        return create_error_response("Either repositories or session_id must be provided", "ValidationError")
 
     session_result = InputValidator.validate_session_id(session_id)
     if not session_result.is_valid:
@@ -434,7 +522,9 @@ async def search_repository(
             genius=genius
         )
 
-        return json.dumps(result)
+        # Enhance response with flow guidance to encourage deeper exploration
+        enhanced_result = enhance_response_with_flow_guidance(result, query, session_id, "search_repository")
+        return json.dumps(enhanced_result)
 
     except Exception as e:
         logger.log_exception(
@@ -473,6 +563,145 @@ async def get_repository_info(
         return json.dumps(result)
     except Exception as e:
         return json.dumps({"error": str(e), "type": type(e).__name__})
+
+# ============================================================================
+# Orchestration Tools - Multi-Agent Coordination
+# ============================================================================
+
+@mcp.tool
+@log_execution_time("analyze_codebase_feature")
+async def analyze_codebase_feature_tool(
+    feature: str,
+    repositories: Optional[str] = None,
+    session_id: Optional[str] = None,
+    analysis_depth: str = "comprehensive",
+    include_implementation: bool = True,
+    include_examples: bool = False
+) -> str:
+    """
+    Autonomous codebase feature analysis using multi-stage orchestration.
+    
+    Implements Claude Code sub-agent pattern for comprehensive analysis:
+    - Lead agent decomposes the analysis task
+    - Spawns specialized sub-agents for discovery, analysis, implementation
+    - Coordinates execution using session continuity
+    - Synthesizes results into unified response
+    
+    Args:
+        feature: Feature or pattern to analyze (e.g., "authentication", "state management")
+        repositories: JSON string of repositories (optional if session exists)
+        session_id: Optional session ID for context continuity
+        analysis_depth: "basic", "comprehensive", or "expert"
+        include_implementation: Include implementation guidance
+        include_examples: Include code examples in response
+    
+    Returns:
+        JSON string with comprehensive multi-stage analysis
+    """
+    try:
+        client = await get_greptile_client()
+        return await analyze_codebase_feature(
+            client=client,
+            feature=feature,
+            repositories=repositories,
+            session_id=session_id,
+            analysis_depth=analysis_depth,
+            include_implementation=include_implementation,
+            include_examples=include_examples
+        )
+    except Exception as e:
+        logger.error(f"Orchestration tool error: {str(e)}", session_id=session_id)
+        return json.dumps({
+            "error": f"Codebase feature analysis failed: {str(e)}",
+            "type": type(e).__name__,
+            "session_id": session_id
+        })
+
+@mcp.tool
+@log_execution_time("compare_codebase_patterns")
+async def compare_codebase_patterns_tool(
+    pattern_focus: str,
+    repositories: str,  # Required for multi-repo comparison
+    session_id: Optional[str] = None,
+    comparison_depth: str = "architectural"
+) -> str:
+    """
+    Cross-repository pattern comparison using orchestrated analysis.
+    
+    Implements multi-repository orchestration pattern:
+    - Lead agent coordinates overall comparison
+    - Spawns analysis sub-agents for each repository
+    - Spawns synthesis agent for cross-repository insights
+    - Integrates results into comparative analysis
+    
+    Args:
+        pattern_focus: Pattern or aspect to compare (e.g., "error handling", "testing patterns")
+        repositories: JSON string of repositories to compare (minimum 2)
+        session_id: Optional session ID for context continuity
+        comparison_depth: "basic", "architectural", or "implementation"
+    
+    Returns:
+        JSON string with cross-repository comparative analysis
+    """
+    try:
+        client = await get_greptile_client()
+        return await compare_codebase_patterns(
+            client=client,
+            pattern_focus=pattern_focus,
+            repositories=repositories,
+            session_id=session_id,
+            comparison_depth=comparison_depth
+        )
+    except Exception as e:
+        logger.error(f"Pattern comparison error: {str(e)}", session_id=session_id)
+        return json.dumps({
+            "error": f"Pattern comparison failed: {str(e)}",
+            "type": type(e).__name__,
+            "session_id": session_id
+        })
+
+@mcp.tool
+@log_execution_time("explore_codebase_autonomous")
+async def explore_codebase_autonomous_tool(
+    starting_point: str,
+    repositories: Optional[str] = None,
+    exploration_depth: int = 3,
+    session_id: Optional[str] = None
+) -> str:
+    """
+    Autonomous codebase exploration using recursive sub-agent pattern.
+    
+    Implements recursive exploration pattern:
+    - Lead agent analyzes starting point and spawns exploration sub-agents
+    - Each sub-agent recursively explores discovered concepts/patterns
+    - Depth-limited recursion prevents infinite exploration
+    - Builds comprehensive exploration tree and synthesis
+    
+    Args:
+        starting_point: Initial concept/pattern to explore (e.g., "component architecture")
+        repositories: JSON string of repositories (optional if session exists)
+        exploration_depth: Maximum recursion depth (1-5)
+        session_id: Optional session ID for context continuity
+    
+    Returns:
+        JSON string with autonomous exploration results and tree
+    """
+    try:
+        client = await get_greptile_client()
+        return await explore_codebase_autonomous(
+            client=client,
+            starting_point=starting_point,
+            repositories=repositories,
+            exploration_depth=exploration_depth,
+            session_id=session_id
+        )
+    except Exception as e:
+        logger.error(f"Autonomous exploration error: {str(e)}", session_id=session_id)
+        return json.dumps({
+            "error": f"Autonomous exploration failed: {str(e)}",
+            "type": type(e).__name__,
+            "session_id": session_id
+        })
 
 # ============================================================================
 # MCP Resources - Live Documentation and Patterns
@@ -890,7 +1119,9 @@ async def greptile_help(
             "advanced": [
                 "Expert thinking is about seeing what others miss",
                 "Treat Greptile as distributed intelligence, not just search",
-                "Each query builds on previous understanding like layered insight"
+                "Each query builds on previous understanding like layered insight",
+                "Orchestration tools spawn specialized sub-agents for comprehensive analysis",
+                "Multi-stage pipelines create compound intelligence from coordinated queries"
             ]
         },
         "pattern_seeds": {
@@ -953,7 +1184,8 @@ async def greptile_help(
         "explore_codebase - Codebase exploration and pattern recognition",
         "expert_consultation - Expert consultation workflow",
         "pattern_recognition - Pattern recognition and learning",
-        "context_integration - Session context integration"
+        "context_integration - Session context integration",
+        "multi_repo_discovery - Multi-repository discovery and exploration"
     ]
     
     # Core tools reminder
@@ -962,6 +1194,12 @@ async def greptile_help(
         "query_repository": "Natural language queries with code context",
         "search_repository": "Find relevant files without full answers",
         "get_repository_info": "Get repository status and metadata"
+    }
+    
+    orchestration_tools = {
+        "analyze_codebase_feature_tool": "Autonomous multi-stage feature analysis",
+        "compare_codebase_patterns_tool": "Cross-repository pattern comparison",
+        "explore_codebase_autonomous_tool": "Recursive autonomous codebase exploration"
     }
     
     # Growth paths based on learning level
@@ -977,18 +1215,18 @@ async def greptile_help(
         "intermediate": {
             "next_steps": [
                 "Use session_id to maintain conversation context",
-                "Try the discover_architecture prompt",
+                "Try analyze_codebase_feature_tool for comprehensive analysis",
                 "Explore the architectural patterns resource"
             ],
-            "focus": "Connecting patterns and building deeper understanding"
+            "focus": "Connecting patterns and using orchestration tools"
         },
         "advanced": {
             "next_steps": [
-                "Use the expert_consultation prompt",
-                "Try multi-phase architectural consultation",
-                "Explore session context integration"
+                "Use compare_codebase_patterns_tool for cross-repository analysis",
+                "Try explore_codebase_autonomous_tool for recursive exploration",
+                "Master multi-stage orchestration workflows"
             ],
-            "focus": "Expert-level consultation and distributed intelligence"
+            "focus": "Expert-level orchestration and multi-agent coordination"
         }
     }
     
@@ -1016,16 +1254,25 @@ async def greptile_help(
         "available_resources": available_resources,
         "available_prompts": available_prompts,
         "core_tools": core_tools,
+        "orchestration_tools": orchestration_tools,
         "philosophy": {
             "approach": "Seeds that grow through use, not rigid instructions",
             "principle": "Context builds like layers: syntax → semantics → intent → wisdom",
             "mindset": "Treat Greptile as distributed intelligence, not just search"
         },
         "quick_start": {
-            "step_1": "Index a repository: index_repository(remote='github', repository='owner/repo', branch='main')",
-            "step_2": "Check status: get_repository_info(remote='github', repository='owner/repo', branch='main')",
-            "step_3": "Query: query_repository('What is the architecture of this codebase?', repositories='[{...}]')",
-            "step_4": "Explore: Use session_id to build conversation context"
+            "basic": {
+                "step_1": "Index a repository: index_repository(remote='github', repository='owner/repo', branch='main')",
+                "step_2": "Check status: get_repository_info(remote='github', repository='owner/repo', branch='main')",
+                "step_3": "Query: query_repository('What is the architecture?', repositories='[{...}]')",
+                "step_4": "Build context: Use session_id for conversation continuity"
+            },
+            "orchestration": {
+                "step_1": "Comprehensive analysis: analyze_codebase_feature_tool(feature='authentication', repositories='[{...}]')",
+                "step_2": "Cross-repository comparison: compare_codebase_patterns_tool(pattern_focus='error handling', repositories='[{repo1}, {repo2}]')",
+                "step_3": "Autonomous exploration: explore_codebase_autonomous_tool(starting_point='component system', exploration_depth=3)",
+                "step_4": "Use session_id across all orchestration tools for compound intelligence"
+            }
         }
     }
     
@@ -1034,6 +1281,78 @@ async def greptile_help(
 # ============================================================================
 # Enhanced Session Context Resources and Pattern Libraries
 # ============================================================================
+
+@mcp.resource("greptile://agents/coordination-patterns")
+async def greptile_agent_coordination_resource() -> str:
+    """Personal capability multiplication patterns for indie developer agent coordination."""
+    return json.dumps({
+        "type": "agent_coordination_patterns",
+        "content": {
+            "learning_amplification": {
+                "name": "Learning Amplification Pattern",
+                "purpose": "Multiply personal learning velocity through codebase exploration",
+                "agent_roles": {
+                    "exploration_agent": "Navigate and map codebase structure",
+                    "pattern_agent": "Extract and catalog reusable patterns", 
+                    "synthesis_agent": "Connect insights across different codebases",
+                    "learning_agent": "Track personal knowledge growth and gaps"
+                },
+                "coordination_flow": [
+                    "Exploration agent maps unfamiliar territory",
+                    "Pattern agent identifies teachable moments",
+                    "Synthesis agent connects to previous knowledge",
+                    "Learning agent updates personal knowledge graph"
+                ],
+                "personal_value": "Transform weeks of reverse engineering into hours of guided learning"
+            },
+            "capability_multiplication": {
+                "name": "Capability Multiplication Pattern",
+                "purpose": "Enhance coding agent capabilities through codebase context",
+                "agent_roles": {
+                    "context_agent": "Maintain full project understanding",
+                    "generation_agent": "Create code using learned patterns",
+                    "validation_agent": "Ensure consistency with project architecture",
+                    "optimization_agent": "Apply performance patterns from similar projects"
+                },
+                "coordination_flow": [
+                    "Context agent provides architectural awareness",
+                    "Generation agent creates contextually appropriate code",
+                    "Validation agent checks against project patterns",
+                    "Optimization agent applies proven techniques"
+                ],
+                "personal_value": "Generate code that fits seamlessly into existing architecture"
+            },
+            "cross_project_intelligence": {
+                "name": "Cross-Project Intelligence Pattern", 
+                "purpose": "Build compound intelligence across multiple codebase explorations",
+                "agent_roles": {
+                    "comparison_agent": "Find similarities across different projects",
+                    "abstraction_agent": "Extract generalizable patterns",
+                    "application_agent": "Apply learned patterns to new contexts",
+                    "evolution_agent": "Track pattern effectiveness over time"
+                },
+                "coordination_flow": [
+                    "Comparison agent identifies recurring solutions",
+                    "Abstraction agent generalizes to reusable principles",
+                    "Application agent suggests relevant patterns for current work",
+                    "Evolution agent refines patterns based on outcomes"
+                ],
+                "personal_value": "Each project you explore makes all future projects easier"
+            }
+        },
+        "coordination_principles": {
+            "session_continuity": "Maintain context across multi-turn explorations",
+            "compound_learning": "Each interaction builds on previous understanding",
+            "personal_adaptation": "Agents adapt to your learning style and preferences",
+            "capability_growth": "Focus on multiplying individual capabilities, not team coordination"
+        },
+        "indie_philosophy": {
+            "empowerment_over_efficiency": "Optimize for learning and capability growth, not just speed",
+            "deep_understanding": "Prioritize comprehension over completion",
+            "pattern_library_building": "Accumulate reusable knowledge for future projects",
+            "personal_ai_evolution": "Your agents get smarter as you explore more codebases"
+        }
+    }, indent=2)
 
 @mcp.resource("greptile://patterns/consultation-phases")
 async def greptile_consultation_phases_resource() -> str:
@@ -1156,6 +1475,57 @@ async def greptile_enhanced_usage_resource() -> str:
             }
         }
     })
+
+@mcp.prompt("multi_repo_discovery")
+async def multi_repo_discovery_prompt(
+    exploration_type: str = "comprehensive",
+    session_context: str = "new_exploration"
+) -> list[dict]:
+    """Multi-repository discovery and exploration prompt."""
+    return [
+        {
+            "role": "system",
+            "content": f"""You are exploring multiple repositories as a unified knowledge space.
+
+Exploration Type: {exploration_type}
+Session Context: {session_context}
+
+Multi-Repository Discovery Approach:
+- Treat repositories as facets of a larger domain understanding
+- Look for patterns that emerge across implementations
+- Identify unique innovations worth cross-pollination
+- Build unified insights that span all repositories
+
+Pattern Seeds:
+- Cross-repository insights reveal universal patterns and unique innovations
+- Each query builds understanding that spans all included repositories
+- Comparative analysis generates insights impossible from single repositories
+
+Memory Trigger: Multi-repo exploration reveals both patterns and innovations"""
+        },
+        {
+            "role": "user",
+            "content": f"""Help me explore these repositories as a unified knowledge domain.
+
+Exploration Focus: {exploration_type}
+
+Discovery Questions:
+- What story emerges when viewing these repositories together?
+- How do different approaches complement each other?
+- What patterns repeat across implementations?
+- Which unique innovations deserve attention?
+
+Cross-Repository Synthesis:
+- What can each project learn from the others?
+- How do domain constraints shape different approaches?
+- What hybrid strategies could emerge from combining insights?
+
+Integration Approach:
+- Use session continuity to build compound understanding
+- Connect insights across repositories in each query
+- Accumulate cross-repository patterns and innovations"""
+        }
+    ]
 
 # ============================================================================
 # Tool Output Schemas (2025 MCP Feature)

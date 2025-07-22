@@ -188,10 +188,12 @@ class GreptileClient:
         url = f"{self.base_url}/query"
         payload = {
             "messages": messages,
-            "repositories": repositories,
             "stream": False,
             "genius": genius
         }
+        # Only include repositories if provided (session-based queries may not need them)
+        if repositories:
+            payload["repositories"] = repositories
         if session_id:
             payload["sessionId"] = session_id
 
@@ -225,10 +227,12 @@ class GreptileClient:
         url = f"{self.base_url}/query"
         payload = {
             "messages": messages,
-            "repositories": repositories,
             "stream": True,
             "genius": genius
         }
+        # Only include repositories if provided (session-based queries may not need them)
+        if repositories:
+            payload["repositories"] = repositories
         if session_id:
             payload["sessionId"] = session_id
 
@@ -311,10 +315,11 @@ class GreptileClient:
         url = f"{self.base_url}/search"
         payload = {
             "messages": messages,
-            "repositories": repositories,
             "genius": genius
         }
-
+        # Only include repositories if provided (session-based queries may not need them)
+        if repositories:
+            payload["repositories"] = repositories
         if session_id:
             payload["sessionId"] = session_id
 
