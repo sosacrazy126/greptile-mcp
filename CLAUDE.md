@@ -55,7 +55,7 @@ ruff format src/
 ### Core Components
 
 1. **`src/main.py`** - Main MCP server implementation using FastMCP (Refactored Architecture)
-   - Defines 5 main tools: `greptile_help`, `index_repository`, `query_repository`, `search_repository`, `get_repository_info`
+   - Defines 4 main tools: `greptile_help`, `index_repository`, `query_repository`, `get_repository_info`
    - Uses modular service and handler architecture for better maintainability
    - Maintains full backward compatibility with original implementation
 
@@ -101,8 +101,7 @@ Each tool function follows the refactored pattern:
 1. **`greptile_help`** - Comprehensive guide and documentation for using all Greptile MCP features
 2. **`index_repository`** - Index a repository to make it searchable (required first step)
 3. **`query_repository`** - Query repositories using natural language
-4. **`search_repository`** - Search for relevant files without generating full answers
-5. **`get_repository_info`** - Get information about indexed repositories
+4. **`get_repository_info`** - Get information about indexed repositories
 
 ### Environment Configuration
 

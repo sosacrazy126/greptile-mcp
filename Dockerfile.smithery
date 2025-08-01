@@ -1,18 +1,44 @@
-FROM python:3.12-slim
+# Smithery Deployment Dockerfile for Greptile MCP Server
+FROM node:18-alpine
 
+# Set working directory
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache git
 
-# Copy all project files
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source code
 COPY . .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -e . && \
-    pip install --no-cache-dir fastapi>=0.116.0
+# Build the TypeScript application
+RUN npm run build
 
-# Run the Smithery HTTP server
-CMD ["python", "-m", "src.smithery_server"]
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S mcp -u 1001
+
+# Change ownership of the app directory
+RUN chown -R mcp:nodejs /app
+USER mcp
+
+# Expose port for health checks
+EXPOSE 8080
+
+# Environment variables (will be overridden by Smithery)
+ENV NODE_ENV=production
+ENV TRANSPORT=stdio
+ENV HOST=0.0.0.0
+ENV PORT=8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD node -e "console.log('Health check passed')" || exit 1
+
+# Start the MCP server
+CMD ["node", "dist/server.js"]

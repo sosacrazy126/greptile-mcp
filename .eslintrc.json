@@ -1,0 +1,25 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "project": "./tsconfig.json"
+  },
+  "plugins": ["@typescript-eslint", "prettier"],
+  "extends": [
+    "eslint:recommended",
+    "prettier"
+  ],
+  "rules": {
+    "prettier/prettier": "error",
+    "no-unused-vars": "off",
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "prefer-const": "error"
+  },
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "ignorePatterns": ["dist/", "node_modules/", "*.js", "*.cjs"]
+}

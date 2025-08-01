@@ -1,65 +1,199 @@
 {
   "name": "greptile-mcp",
-  "version": "1.0.0",
-  "description": "Natural language code search and analysis across multiple repositories",
-  "transport": "http",
-  "author": "sosacrazy126",
+  "version": "3.0.0",
+  "displayName": "Greptile MCP Server",
+  "description": "Modern TypeScript MCP server for AI-powered code search and querying with Greptile API",
+  "icon": "🔍",
+  "author": {
+    "name": "Greptile MCP Team",
+    "email": "support@greptile.com",
+    "url": "https://greptile.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sosacrazy126/greptile-mcp.git"
+  },
   "license": "MIT",
-  "homepage": "https://github.com/sosacrazy126/greptile-mcp",
-  "repository": "https://github.com/sosacrazy126/greptile-mcp",
   "keywords": [
-    "code-search",
+    "mcp",
+    "model-context-protocol", 
     "greptile",
+    "ai",
+    "code-search",
+    "typescript",
     "repository-analysis",
-    "code-understanding",
-    "mcp"
+    "claude",
+    "codebase-understanding"
   ],
-  "config": {
+  "categories": [
+    "Developer Tools",
+    "AI/ML", 
+    "Code Analysis"
+  ],
+  "mcp": {
+    "mcpVersion": "2024-11-05",
+    "capabilities": {
+      "tools": {
+        "listChanged": false
+      },
+      "resources": {
+        "subscribe": false,
+        "listChanged": false
+      },
+      "prompts": {
+        "listChanged": false
+      }
+    },
+    "tools": [
+      {
+        "name": "greptile_help",
+        "description": "Get comprehensive help and usage examples for all Greptile MCP tools",
+        "category": "documentation"
+      },
+      {
+        "name": "index_repository", 
+        "description": "Index a repository to make it searchable for future queries",
+        "category": "setup"
+      },
+      {
+        "name": "query_repository",
+        "description": "Query repositories using natural language to get detailed answers with code references", 
+        "category": "analysis"
+      },
+      {
+        "name": "get_repository_info",
+        "description": "Get information about an indexed repository including status and metadata",
+        "category": "status"
+      }
+    ],
+    "resources": [
+      {
+        "uri": "greptile://help",
+        "name": "Greptile MCP Help",
+        "description": "Comprehensive documentation for all Greptile MCP features",
+        "mimeType": "text/markdown"
+      },
+      {
+        "uri": "greptile://config", 
+        "name": "Current Configuration",
+        "description": "Current server configuration and settings",
+        "mimeType": "application/json"
+      }
+    ],
+    "prompts": [
+      {
+        "name": "codebase_exploration",
+        "description": "Start exploring a codebase with guided questions",
+        "arguments": [
+          {
+            "name": "repository",
+            "description": "Repository to explore (owner/repo)",
+            "required": true
+          },
+          {
+            "name": "focus_area",
+            "description": "Specific area to focus on (architecture, authentication, etc.)",
+            "required": false
+          }
+        ]
+      }
+    ]
+  },
+  "deployment": {
+    "dockerfile": "Dockerfile.smithery",
+    "buildContext": ".",
+    "healthCheck": {
+      "enabled": true,
+      "path": "/health",
+      "interval": 30,
+      "timeout": 10,
+      "retries": 3
+    },
+    "resources": {
+      "memory": "512Mi",
+      "cpu": "0.5",
+      "storage": "1Gi"
+    },
+    "scaling": {
+      "minReplicas": 1,
+      "maxReplicas": 3,
+      "targetCPUUtilization": 70
+    }
+  },
+  "environment": {
     "required": [
       {
         "name": "GREPTILE_API_KEY",
-        "description": "Your Greptile API key",
-        "type": "string"
+        "description": "Your Greptile API key from app.greptile.com/settings/api",
+        "secret": true
       },
       {
         "name": "GITHUB_TOKEN", 
-        "description": "GitHub personal access token for repository access",
-        "type": "string"
+        "description": "GitHub personal access token with repo permissions",
+        "secret": true
       }
     ],
     "optional": [
       {
         "name": "GREPTILE_BASE_URL",
-        "description": "Custom Greptile API base URL (default: https://api.greptile.com/v2)",
-        "type": "string",
+        "description": "Base URL for Greptile API", 
         "default": "https://api.greptile.com/v2"
+      },
+      {
+        "name": "TRANSPORT",
+        "description": "Transport method (sse or stdio)",
+        "default": "stdio"
+      },
+      {
+        "name": "HOST",
+        "description": "Host binding for SSE transport",
+        "default": "0.0.0.0"
+      },
+      {
+        "name": "PORT", 
+        "description": "Port for SSE transport",
+        "default": "8080"
       }
     ]
   },
-  "tools": [
-    {
-      "name": "greptile_help",
-      "description": "Get comprehensive documentation on using Greptile MCP"
-    },
-    {
-      "name": "index_repository",
-      "description": "Index a repository to make it searchable"
-    },
-    {
-      "name": "query_repository",
-      "description": "Query repositories with natural language"
-    },
-    {
-      "name": "search_repository",
-      "description": "Search for code patterns across repositories"
-    },
-    {
-      "name": "compare_repositories",
-      "description": "Compare implementations across repositories"
-    },
-    {
-      "name": "get_repository_info",
-      "description": "Check repository indexing status"
-    }
-  ]
+  "documentation": {
+    "quickStart": "Get your Greptile API key and GitHub token, then deploy to start querying codebases with natural language.",
+    "setupInstructions": [
+      "1. Obtain a Greptile API key from https://app.greptile.com/settings/api",
+      "2. Generate a GitHub personal access token with 'repo' permissions",
+      "3. Set the GREPTILE_API_KEY and GITHUB_TOKEN environment variables",
+      "4. Deploy the server and start using the MCP tools"
+    ],
+    "usageExamples": [
+      {
+        "title": "Index a Repository",
+        "description": "Index a repository to make it searchable",
+        "example": {
+          "name": "index_repository",
+          "arguments": {
+            "remote": "github",
+            "repository": "microsoft/vscode", 
+            "branch": "main"
+          }
+        }
+      },
+      {
+        "title": "Query Codebase",
+        "description": "Ask natural language questions about the code",
+        "example": {
+          "name": "query_repository",
+          "arguments": {
+            "query": "How is user authentication implemented in this codebase?",
+            "repositories": [
+              {
+                "remote": "github",
+                "repository": "microsoft/vscode",
+                "branch": "main"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
 }
