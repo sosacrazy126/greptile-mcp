@@ -48,11 +48,13 @@ export const ConfigSchema = z.object({
   githubToken: z.string().optional(),
   baseUrl: z.string().default('https://api.greptile.com/v2'),
   repositories: z.array(RepositorySchema).optional(),
-  features: z.object({
-    streaming: z.boolean().default(true),
-    orchestration: z.boolean().default(true),
-    flowEnhancement: z.boolean().default(true),
-  }).optional(),
+  features: z
+    .object({
+      streaming: z.boolean().default(true),
+      orchestration: z.boolean().default(true),
+      flowEnhancement: z.boolean().default(true),
+    })
+    .optional(),
   plugins: z.array(z.string()).optional(),
 });
 
@@ -114,6 +116,16 @@ export interface GreptileError extends Error {
   code?: string;
   statusCode?: number;
   response?: unknown;
+}
+
+// Environment Checking Types
+export interface EnvironmentStatus {
+  hasGreptileApiKey: boolean;
+  hasGithubToken: boolean;
+  isFullyConfigured: boolean;
+  missingVars: string[];
+  suggestions: string[];
+  configErrors?: string[];
 }
 
 // Plugin System Types

@@ -29,7 +29,7 @@ export class GreptileClient {
     this.defaultTimeout = 60000; // 60 seconds
 
     this.headers = {
-      'Authorization': `Bearer ${this.apiKey}`,
+      Authorization: `Bearer ${this.apiKey}`,
       'X-GitHub-Token': this.githubToken,
       'Content-Type': 'application/json',
       'User-Agent': 'greptile-mcp-server/3.0.0',
@@ -71,13 +71,7 @@ export class GreptileClient {
     timeout?: number
   ): Promise<QueryResponse | AsyncIterable<StreamingChunk>> {
     if (stream) {
-      return this.streamQueryRepositories(
-        messages,
-        repositories,
-        sessionId,
-        genius,
-        timeout
-      );
+      return this.streamQueryRepositories(messages, repositories, sessionId, genius, timeout);
     }
 
     const url = `${this.baseUrl}/query`;
@@ -124,7 +118,7 @@ export class GreptileClient {
 
     const streamHeaders = {
       ...this.headers,
-      'Accept': 'text/event-stream',
+      Accept: 'text/event-stream',
       'Cache-Control': 'no-cache',
     };
 
@@ -184,7 +178,6 @@ export class GreptileClient {
     }
   }
 
-
   /**
    * Get information about an indexed repository
    */
@@ -217,7 +210,7 @@ export class GreptileClient {
       const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
 
       try {
-        const requestOptions: RequestInit = {
+        const requestOptions: any = {
           method,
           headers: this.headers,
           signal: controller.signal,

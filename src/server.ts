@@ -12,19 +12,28 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { GreptileClient } from './clients/greptile.js';
-import { validateConfig, generateSessionId, createErrorResponse } from './utils/index.js';
-import type { Config } from './types/index.js';
+import {
+  validateConfig,
+  generateSessionId,
+  createErrorResponse,
+  checkEnvironmentVariables,
+} from './utils/index.js';
+import type { Config, EnvironmentStatus } from './types/index.js';
 
 class GreptileMCPServer {
   private server: Server;
   private greptileClient: GreptileClient | null = null;
   private config: Config | null = null;
+  private envStatus: EnvironmentStatus;
 
   constructor() {
+    // Check environment variables first
+    this.envStatus = checkEnvironmentVariables();
+
     this.server = new Server(
       {
         name: 'greptile-mcp-server',
-        version: '3.0.0',
+        version: '3.0.3',
         description: 'AI-powered code search and querying with Greptile API',
       },
       {
@@ -44,17 +53,26 @@ class GreptileMCPServer {
    */
   async initialize(config: Config): Promise<void> {
     this.config = config;
-    this.greptileClient = new GreptileClient(config);
 
-    // Test API connectivity
-    try {
-      const isHealthy = await this.greptileClient.healthCheck();
-      if (!isHealthy) {
-        throw new Error('Greptile API health check failed');
+    // Only initialize Greptile client if environment is fully configured
+    if (this.envStatus.isFullyConfigured) {
+      try {
+        this.greptileClient = new GreptileClient(config);
+
+        // Test API connectivity
+        const isHealthy = await this.greptileClient.healthCheck();
+        if (!isHealthy) {
+          console.warn('Greptile API health check failed - tools may not work correctly');
+        }
+      } catch (error) {
+        console.error('Failed to initialize Greptile client:', error);
+        // Don't throw - let server start anyway for diagnostic purposes
+        this.greptileClient = null;
       }
-    } catch (error) {
-      console.error('Failed to initialize Greptile client:', error);
-      throw error;
+    } else {
+      console.warn('Greptile MCP server started with incomplete configuration');
+      console.warn('Missing environment variables:', this.envStatus.missingVars.join(', '));
+      console.warn('Use greptile_env_check tool for setup guidance');
     }
   }
 
@@ -68,6 +86,14 @@ class GreptileMCPServer {
         {
           name: 'greptile_help',
           description: 'Get comprehensive help and usage examples for all Greptile MCP tools',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        {
+          name: 'greptile_env_check',
+          description: 'Check environment variable configuration and setup status',
           inputSchema: {
             type: 'object',
             properties: {},
@@ -108,7 +134,8 @@ class GreptileMCPServer {
         },
         {
           name: 'query_repository',
-          description: 'Query repositories using natural language to get detailed answers with code references',
+          description:
+            'Query repositories using natural language to get detailed answers with code references',
           inputSchema: {
             type: 'object',
             properties: {
@@ -131,7 +158,8 @@ class GreptileMCPServer {
               },
               session_id: {
                 type: 'string',
-                description: 'Session ID for conversation continuity (auto-generated if not provided)',
+                description:
+                  'Session ID for conversation continuity (auto-generated if not provided)',
               },
               stream: {
                 type: 'boolean',
@@ -191,29 +219,20 @@ class GreptileMCPServer {
     }));
 
     // Handle tool calls
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      if (!this.greptileClient) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: createErrorResponse('Server not initialized. Please provide API credentials.'),
-            },
-          ],
-        };
-      }
-
+    this.server.setRequestHandler(CallToolRequestSchema, async request => {
       try {
         switch (request.params.name) {
           case 'greptile_help':
             return await this.handleGreptileHelp();
+
+          case 'greptile_env_check':
+            return await this.handleEnvironmentCheck();
 
           case 'index_repository':
             return await this.handleIndexRepository(request.params.arguments);
 
           case 'query_repository':
             return await this.handleQueryRepository(request.params.arguments);
-
 
           case 'get_repository_info':
             return await this.handleGetRepositoryInfo(request.params.arguments);
@@ -260,7 +279,7 @@ class GreptileMCPServer {
     }));
 
     // Handle resource reads
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    this.server.setRequestHandler(ReadResourceRequestSchema, async request => {
       const { uri } = request.params;
 
       if (uri === 'greptile://help') {
@@ -313,7 +332,7 @@ class GreptileMCPServer {
     }));
 
     // Handle prompt requests
-    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    this.server.setRequestHandler(GetPromptRequestSchema, async request => {
       if (request.params.name === 'codebase_exploration') {
         const repository = request.params.arguments?.repository as string;
         const focusArea = request.params.arguments?.focus_area as string;
@@ -351,14 +370,69 @@ class GreptileMCPServer {
   }
 
   /**
+   * Handle greptile_env_check tool
+   */
+  private async handleEnvironmentCheck(): Promise<{
+    content: Array<{ type: string; text: string }>;
+  }> {
+    const status = this.envStatus;
+
+    const report = {
+      status: status.isFullyConfigured ? 'CONFIGURED' : 'INCOMPLETE',
+      environment_variables: {
+        GREPTILE_API_KEY: status.hasGreptileApiKey ? 'SET' : 'MISSING',
+        GITHUB_TOKEN: status.hasGithubToken ? 'SET' : 'MISSING',
+      },
+      api_connectivity: null as string | null,
+      missing_variables: status.missingVars,
+      setup_instructions: status.suggestions,
+    };
+
+    if (this.greptileClient) {
+      try {
+        const healthCheck = await this.greptileClient.healthCheck();
+        report.api_connectivity = healthCheck ? 'CONNECTED' : 'FAILED';
+      } catch (error) {
+        report.api_connectivity = 'ERROR: ' + (error as Error).message;
+      }
+    } else {
+      report.api_connectivity = 'NOT_INITIALIZED';
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(report, null, 2),
+        },
+      ],
+    };
+  }
+
+  /**
    * Handle index_repository tool
    */
   private async handleIndexRepository(
     args: unknown
   ): Promise<{ content: Array<{ type: string; text: string }> }> {
+    if (!this.greptileClient) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: createErrorResponse(
+              'Cannot index repository: Missing environment variables. Use greptile_env_check for setup guidance.',
+              'Configuration Error',
+              undefined
+            ),
+          },
+        ],
+      };
+    }
+
     const { remote, repository, branch, reload = true, notify = false } = args as any;
 
-    const result = await this.greptileClient!.indexRepository(
+    const result = await this.greptileClient.indexRepository(
       remote,
       repository,
       branch,
@@ -382,6 +456,21 @@ class GreptileMCPServer {
   private async handleQueryRepository(
     args: unknown
   ): Promise<{ content: Array<{ type: string; text: string }> }> {
+    if (!this.greptileClient) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: createErrorResponse(
+              'Cannot query repository: Missing environment variables. Use greptile_env_check for setup guidance.',
+              'Configuration Error',
+              undefined
+            ),
+          },
+        ],
+      };
+    }
+
     const {
       query,
       repositories = [],
@@ -396,15 +485,12 @@ class GreptileMCPServer {
     const sessionId = session_id || generateSessionId();
 
     // Prepare messages array
-    const messages = [
-      ...previous_messages,
-      { role: 'user' as const, content: query },
-    ];
+    const messages = [...previous_messages, { role: 'user' as const, content: query }];
 
     if (stream) {
       // Handle streaming response
       const streamResults: string[] = [];
-      const streamingResponse = await this.greptileClient!.queryRepositories(
+      const streamingResponse = await this.greptileClient.queryRepositories(
         messages,
         repositories,
         sessionId,
@@ -423,17 +509,21 @@ class GreptileMCPServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              message: streamResults.join(''),
-              session_id: sessionId,
-              streamed: true,
-            }, null, 2),
+            text: JSON.stringify(
+              {
+                message: streamResults.join(''),
+                session_id: sessionId,
+                streamed: true,
+              },
+              null,
+              2
+            ),
           },
         ],
       };
     } else {
       // Handle regular response
-      const result = await this.greptileClient!.queryRepositories(
+      const result = await this.greptileClient.queryRepositories(
         messages,
         repositories,
         sessionId,
@@ -453,16 +543,30 @@ class GreptileMCPServer {
     }
   }
 
-
   /**
    * Handle get_repository_info tool
    */
   private async handleGetRepositoryInfo(
     args: unknown
   ): Promise<{ content: Array<{ type: string; text: string }> }> {
+    if (!this.greptileClient) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: createErrorResponse(
+              'Cannot get repository info: Missing environment variables. Use greptile_env_check for setup guidance.',
+              'Configuration Error',
+              undefined
+            ),
+          },
+        ],
+      };
+    }
+
     const { remote, repository, branch } = args as any;
 
-    const result = await this.greptileClient!.getRepositoryInfo(remote, repository, branch);
+    const result = await this.greptileClient.getRepositoryInfo(remote, repository, branch);
 
     return {
       content: [
@@ -590,7 +694,7 @@ Get information about an indexed repository.
 
 Required environment variables:
 - \`GREPTILE_API_KEY\`: Your Greptile API key
-- \`GITHUB_AI_TOKEN\`: GitHub personal access token (or \`GITHUB_TOKEN\` as fallback)
+- \`GITHUB_TOKEN\`: GitHub personal access token
 
 Optional:
 - \`GREPTILE_BASE_URL\`: Custom API base URL (default: https://api.greptile.com/v2)
@@ -614,7 +718,7 @@ Optional:
    */
   private generateExplorationPrompt(repository: string, focusArea?: string): string {
     const basePrompt = `Let's explore the ${repository} codebase systematically.`;
-    
+
     if (focusArea) {
       return `${basePrompt} I'm particularly interested in understanding the ${focusArea} aspects. 
 
@@ -663,10 +767,29 @@ export { GreptileMCPServer };
 // CLI entry point
 if (import.meta.url === `file://${process.argv[1]}`) {
   (async () => {
-    const config = validateConfig();
+    // Check environment status first
+    const envStatus = checkEnvironmentVariables();
+
+    let config: Config;
+    if (envStatus.isFullyConfigured) {
+      config = validateConfig();
+    } else {
+      // Create minimal config for diagnostic mode
+      config = {
+        apiKey: process.env.GREPTILE_API_KEY,
+        githubToken: process.env.GITHUB_TOKEN,
+        baseUrl: process.env.GREPTILE_BASE_URL || 'https://api.greptile.com/v2',
+        features: {
+          streaming: true,
+          orchestration: true,
+          flowEnhancement: true,
+        },
+      };
+    }
+
     const server = await GreptileMCPServer.create(config);
     await server.start();
-  })().catch((error) => {
+  })().catch(error => {
     console.error('Failed to start server:', error);
     process.exit(1);
   });

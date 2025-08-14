@@ -35,7 +35,7 @@ describe('Utils', () => {
     it('should return undefined for null/undefined input', () => {
       expect(normalizeSessionId(undefined)).to.be.undefined;
     });
-    
+
     it('should handle empty string', () => {
       expect(normalizeSessionId('')).to.be.undefined;
     });

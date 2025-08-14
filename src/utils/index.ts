@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { Config } from '../types/index.js';
+import type { Config, EnvironmentStatus } from '../types/index.js';
 
 /**
  * Generate a new unique session ID in proper UUID format
@@ -44,16 +44,45 @@ export function safeJsonParse<T>(text: string, fallback: T): T {
 }
 
 /**
+ * Check environment variable configuration status
+ */
+export function checkEnvironmentVariables(): EnvironmentStatus {
+  const hasGreptileApiKey = !!process.env.GREPTILE_API_KEY;
+  const hasGithubToken = !!process.env.GITHUB_TOKEN;
+
+  const missingVars: string[] = [];
+  const suggestions: string[] = [];
+
+  if (!hasGreptileApiKey) {
+    missingVars.push('GREPTILE_API_KEY');
+    suggestions.push('Get your Greptile API key from https://app.greptile.com/settings/api');
+    suggestions.push('Set it as: export GREPTILE_API_KEY="your_key_here"');
+  }
+
+  if (!hasGithubToken) {
+    missingVars.push('GITHUB_TOKEN');
+    suggestions.push('Generate a GitHub token at https://github.com/settings/tokens');
+    suggestions.push('Token needs "repo" permissions for repositories you want to index');
+    suggestions.push('Set it as: export GITHUB_TOKEN="your_token_here"');
+  }
+
+  return {
+    hasGreptileApiKey,
+    hasGithubToken,
+    isFullyConfigured: hasGreptileApiKey && hasGithubToken,
+    missingVars,
+    suggestions,
+  };
+}
+
+/**
  * Validate environment variables and create config
  */
 export function validateConfig(overrides: Partial<Config> = {}): Config {
-  // Check for GitHub token with fallback priority:
+  // Check for GitHub token with priority:
   // 1. Override from arguments
-  // 2. GITHUB_AI_TOKEN (preferred)
-  // 3. GITHUB_TOKEN (fallback)
-  const githubToken = overrides.githubToken || 
-                     process.env.GITHUB_AI_TOKEN || 
-                     process.env.GITHUB_TOKEN;
+  // 2. GITHUB_TOKEN (standard environment variable)
+  const githubToken = overrides.githubToken || process.env.GITHUB_TOKEN;
 
   const config: Config = {
     apiKey: process.env.GREPTILE_API_KEY || overrides.apiKey,
@@ -71,11 +100,15 @@ export function validateConfig(overrides: Partial<Config> = {}): Config {
 
   // Validation
   if (!config.apiKey) {
-    throw new Error('GREPTILE_API_KEY environment variable or --api-key argument is required');
+    throw new Error(
+      'GREPTILE_API_KEY environment variable or --api-key argument is required\n\n💡 Get your API key from: https://app.greptile.com/settings/api\n💡 Run "npx greptile-mcp-server init" for setup help'
+    );
   }
 
   if (!config.githubToken) {
-    throw new Error('GITHUB_AI_TOKEN or GITHUB_TOKEN environment variable or --github-token argument is required');
+    throw new Error(
+      'GITHUB_TOKEN environment variable or --github-token argument is required\n\n💡 Generate a token at: https://github.com/settings/tokens\n💡 Run "npx greptile-mcp-server init" for setup help'
+    );
   }
 
   return config;
@@ -123,12 +156,7 @@ export async function retry<T>(
     backoffFactor?: number;
   } = {}
 ): Promise<T> {
-  const {
-    maxAttempts = 3,
-    baseDelay = 1000,
-    maxDelay = 10000,
-    backoffFactor = 2,
-  } = options;
+  const { maxAttempts = 3, baseDelay = 1000, maxDelay = 10000, backoffFactor = 2 } = options;
 
   let lastError: Error;
 
@@ -137,16 +165,13 @@ export async function retry<T>(
       return await fn();
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      
+
       if (attempt === maxAttempts) {
         throw lastError;
       }
 
-      const delayMs = Math.min(
-        baseDelay * Math.pow(backoffFactor, attempt - 1),
-        maxDelay
-      );
-      
+      const delayMs = Math.min(baseDelay * Math.pow(backoffFactor, attempt - 1), maxDelay);
+
       await delay(delayMs);
     }
   }
@@ -183,7 +208,7 @@ export function isValidUrl(url: string): boolean {
 export function parseRepositoryUrl(url: string): { remote: string; repository: string } | null {
   try {
     const parsedUrl = new URL(url);
-    
+
     // GitHub URLs
     if (parsedUrl.hostname === 'github.com') {
       const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
@@ -194,7 +219,7 @@ export function parseRepositoryUrl(url: string): { remote: string; repository: s
         };
       }
     }
-    
+
     // GitLab URLs
     if (parsedUrl.hostname === 'gitlab.com') {
       const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
@@ -205,7 +230,7 @@ export function parseRepositoryUrl(url: string): { remote: string; repository: s
         };
       }
     }
-    
+
     return null;
   } catch {
     return null;

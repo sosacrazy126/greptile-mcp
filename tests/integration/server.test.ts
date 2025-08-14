@@ -29,7 +29,7 @@ describe('Greptile MCP Server Integration', () => {
 
     it('should handle missing API key', async () => {
       const invalidConfig = { ...config, apiKey: undefined };
-      
+
       try {
         await GreptileMCPServer.create(invalidConfig);
         expect.fail('Should have thrown error for missing API key');
@@ -41,7 +41,7 @@ describe('Greptile MCP Server Integration', () => {
 
     it('should handle missing GitHub token', async () => {
       const invalidConfig = { ...config, githubToken: undefined };
-      
+
       try {
         await GreptileMCPServer.create(invalidConfig);
         expect.fail('Should have thrown error for missing GitHub token');
@@ -67,12 +67,15 @@ describe('Greptile MCP Server Integration', () => {
 
   // Note: These tests would require actual API credentials and connectivity
   // For CI/CD, these could be skipped or mocked
-  describe('API Integration (requires credentials)', function() {
+  describe('API Integration (requires credentials)', function () {
     this.timeout(10000); // Increase timeout for API calls
 
-    before(function() {
+    before(function () {
       // Skip if no real credentials provided
-      if (!process.env.GREPTILE_API_KEY || (!process.env.GITHUB_AI_TOKEN && !process.env.GITHUB_TOKEN)) {
+      if (
+        !process.env.GREPTILE_API_KEY ||
+        (!process.env.GITHUB_AI_TOKEN && !process.env.GITHUB_TOKEN)
+      ) {
         this.skip();
       }
     });
