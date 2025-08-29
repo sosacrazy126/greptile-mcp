@@ -177,3 +177,7 @@ run_*.py
 *_tmp.*
 .temp/
 .tmp/
+
+# Development IDE directories
+.augment/
+.kilocode/
