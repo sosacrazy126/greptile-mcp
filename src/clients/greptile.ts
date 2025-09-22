@@ -16,15 +16,16 @@ export class GreptileClient {
   private readonly headers: Record<string, string>;
 
   constructor(config: Config) {
+    // Allow empty keys for testing, but warn about limited functionality
     if (!config.apiKey) {
-      throw new Error('API key is required');
+      console.warn('⚠️  No Greptile API key provided - functionality will be limited');
     }
     if (!config.githubToken) {
-      throw new Error('GitHub token is required');
+      console.warn('⚠️  No GitHub token provided - repository access will be limited');
     }
 
-    this.apiKey = config.apiKey;
-    this.githubToken = config.githubToken;
+    this.apiKey = config.apiKey || '';
+    this.githubToken = config.githubToken || '';
     this.baseUrl = config.baseUrl || 'https://api.greptile.com/v2';
     this.defaultTimeout = 60000; // 60 seconds
 
@@ -203,6 +204,11 @@ export class GreptileClient {
     payload?: unknown,
     timeout?: number
   ): Promise<Record<string, unknown>> {
+    // Check if API key is available for actual requests
+    if (!this.apiKey) {
+      throw new Error('Greptile API key is required for API calls. Please configure your API key in the session settings.');
+    }
+
     const requestTimeout = timeout || this.defaultTimeout;
 
     const makeRequestAttempt = async (): Promise<Record<string, unknown>> => {

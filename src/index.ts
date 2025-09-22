@@ -6,8 +6,8 @@ import { generateSessionId, createErrorResponse } from './utils/index.js';
 
 // Configuration schema for Smithery - this will auto-generate the session config UI
 export const configSchema = z.object({
-  greptileApiKey: z.string().describe('Your Greptile API key from app.greptile.com/settings/api'),
-  githubToken: z.string().describe('GitHub personal access token with repo permissions'),
+  greptileApiKey: z.string().default('').describe('Your Greptile API key from app.greptile.com/settings/api (required for functionality)'),
+  githubToken: z.string().default('').describe('GitHub personal access token with repo permissions (required for repository access)'),
   greptileBaseUrl: z
     .string()
     .default('https://api.greptile.com/v2')
