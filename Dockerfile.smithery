@@ -9,15 +9,20 @@ RUN apk add --no-cache git
 
 # Copy package files
 COPY package*.json ./
+COPY tsconfig.json ./
+COPY tsup.config.ts ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install all dependencies for build
+RUN npm ci
 
 # Copy source code
-COPY . .
+COPY src ./src
 
 # Build the TypeScript application
 RUN npm run build
+
+# Remove dev dependencies
+RUN npm prune --production
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -27,18 +32,16 @@ RUN addgroup -g 1001 -S nodejs && \
 RUN chown -R mcp:nodejs /app
 USER mcp
 
-# Expose port for health checks
+# Expose port for HTTP transport
 EXPOSE 8080
 
-# Environment variables (will be overridden by Smithery)
+# Environment variables
 ENV NODE_ENV=production
-ENV TRANSPORT=stdio
-ENV HOST=0.0.0.0
 ENV PORT=8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD node -e "console.log('Health check passed')" || exit 1
 
-# Start the MCP server
-CMD ["node", "dist/server.js"]
+# Start the MCP server via Smithery entry point
+CMD ["node", "dist/smithery.js"]

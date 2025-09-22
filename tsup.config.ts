@@ -4,7 +4,8 @@ export default defineConfig({
   entry: {
     cli: 'src/cli.ts',
     server: 'src/server.ts',
-    index: 'src/index.ts'
+    index: 'src/index.ts',
+    smithery: 'src/smithery.ts'
   },
   format: ['esm'],
   dts: true,

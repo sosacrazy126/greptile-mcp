@@ -4,7 +4,7 @@ import { GreptileClient } from './clients/greptile.js';
 import type { QueryMessage } from './types/index.js';
 import { generateSessionId, createErrorResponse } from './utils/index.js';
 
-// Configuration schema for Smithery - this will auto-generate the session config UI
+// Define configuration schema for Smithery
 export const configSchema = z.object({
   greptileApiKey: z.string().describe('Your Greptile API key from app.greptile.com/settings/api'),
   githubToken: z.string().describe('GitHub personal access token with repo permissions'),
@@ -19,29 +19,25 @@ export const configSchema = z.object({
 
 type Config = z.infer<typeof configSchema>;
 
-// Required: Export default createServer function for Smithery
-export default function createServer({ config }: { config: Config }) {
+export default function ({ config }: { config: Config }) {
   const server = new McpServer({
     name: 'greptile-mcp-server',
     version: '3.0.4',
     description: 'AI-powered code search and querying with Greptile API',
   });
 
-  // Initialize Greptile client with user-provided configuration
+  // Initialize Greptile client
   const greptileClient = new GreptileClient({
     apiKey: config.greptileApiKey,
     githubToken: config.githubToken,
     baseUrl: config.greptileBaseUrl,
   });
 
-  // Register greptile_help tool
-  server.registerTool(
+  // Add greptile_help tool
+  server.tool(
     'greptile_help',
-    {
-      title: 'Greptile Help',
-      description: 'Get comprehensive help and usage examples for all Greptile MCP tools',
-      inputSchema: {},
-    },
+    'Get comprehensive help and usage examples for all Greptile MCP tools',
+    {},
     async () => {
       const helpContent = `# 🚀 Greptile MCP Server - Comprehensive Guide
 
@@ -100,25 +96,22 @@ For more information, visit: https://docs.greptile.com`;
     }
   );
 
-  // Register index_repository tool
-  server.registerTool(
+  // Add index_repository tool
+  server.tool(
     'index_repository',
+    'Index a repository to make it searchable for future queries',
     {
-      title: 'Index Repository',
-      description: 'Index a repository to make it searchable for future queries',
-      inputSchema: {
-        remote: z.enum(['github', 'gitlab']).describe('Repository host (github or gitlab)'),
-        repository: z.string().describe('Repository in owner/repo format'),
-        branch: z.string().describe('Branch to index'),
-        reload: z
-          .boolean()
-          .default(true)
-          .describe('Force reprocessing of previously indexed repository'),
-        notify: z
-          .boolean()
-          .default(false)
-          .describe('Send email notification when indexing completes'),
-      },
+      remote: z.enum(['github', 'gitlab']).describe('Repository host (github or gitlab)'),
+      repository: z.string().describe('Repository in owner/repo format'),
+      branch: z.string().describe('Branch to index'),
+      reload: z
+        .boolean()
+        .default(true)
+        .describe('Force reprocessing of previously indexed repository'),
+      notify: z
+        .boolean()
+        .default(false)
+        .describe('Send email notification when indexing completes'),
     },
     async ({ remote, repository, branch, reload, notify }) => {
       try {
@@ -147,42 +140,38 @@ For more information, visit: https://docs.greptile.com`;
     }
   );
 
-  // Register query_repository tool
-  server.registerTool(
+  // Add query_repository tool
+  server.tool(
     'query_repository',
+    'Query repositories using natural language to get detailed answers with code references',
     {
-      title: 'Query Repository',
-      description:
-        'Query repositories using natural language to get detailed answers with code references',
-      inputSchema: {
-        query: z.string().describe('Natural language query about the codebase'),
-        repositories: z
-          .array(
-            z.object({
-              remote: z.enum(['github', 'gitlab']),
-              repository: z.string(),
-              branch: z.string(),
-            })
-          )
-          .default([])
-          .describe('List of repositories to query'),
-        session_id: z
-          .string()
-          .optional()
-          .describe('Session ID for conversation continuity (auto-generated if not provided)'),
-        stream: z.boolean().default(false).describe('Enable streaming response'),
-        genius: z.boolean().default(true).describe('Use enhanced query capabilities'),
-        timeout: z.number().default(60000).describe('Request timeout in milliseconds'),
-        previous_messages: z
-          .array(
-            z.object({
-              role: z.enum(['user', 'assistant']),
-              content: z.string(),
-            })
-          )
-          .default([])
-          .describe('Previous conversation messages for context'),
-      },
+      query: z.string().describe('Natural language query about the codebase'),
+      repositories: z
+        .array(
+          z.object({
+            remote: z.enum(['github', 'gitlab']),
+            repository: z.string(),
+            branch: z.string(),
+          })
+        )
+        .default([])
+        .describe('List of repositories to query'),
+      session_id: z
+        .string()
+        .optional()
+        .describe('Session ID for conversation continuity (auto-generated if not provided)'),
+      stream: z.boolean().default(false).describe('Enable streaming response'),
+      genius: z.boolean().default(true).describe('Use enhanced query capabilities'),
+      timeout: z.number().default(60000).describe('Request timeout in milliseconds'),
+      previous_messages: z
+        .array(
+          z.object({
+            role: z.enum(['user', 'assistant']),
+            content: z.string(),
+          })
+        )
+        .default([])
+        .describe('Previous conversation messages for context'),
     },
     async ({ query, repositories, session_id, stream, genius, timeout, previous_messages }) => {
       try {
@@ -263,17 +252,14 @@ For more information, visit: https://docs.greptile.com`;
     }
   );
 
-  // Register get_repository_info tool
-  server.registerTool(
+  // Add get_repository_info tool
+  server.tool(
     'get_repository_info',
+    'Get information about an indexed repository including status and metadata',
     {
-      title: 'Get Repository Info',
-      description: 'Get information about an indexed repository including status and metadata',
-      inputSchema: {
-        remote: z.enum(['github', 'gitlab']).describe('Repository host'),
-        repository: z.string().describe('Repository in owner/repo format'),
-        branch: z.string().describe('Branch that was indexed'),
-      },
+      remote: z.enum(['github', 'gitlab']).describe('Repository host'),
+      repository: z.string().describe('Repository in owner/repo format'),
+      branch: z.string().describe('Branch that was indexed'),
     },
     async ({ remote, repository, branch }) => {
       try {
@@ -296,7 +282,7 @@ For more information, visit: https://docs.greptile.com`;
     }
   );
 
-  // Register resources
+  // Add resources
   server.registerResource(
     'greptile-help',
     'greptile://help',
@@ -307,9 +293,7 @@ For more information, visit: https://docs.greptile.com`;
     },
     async uri => {
       const helpContent = `# Greptile MCP Server Resources\n\nThis resource provides comprehensive documentation for all Greptile MCP features.`;
-      return {
-        contents: [{ uri: uri.href, mimeType: 'text/markdown', text: helpContent }],
-      };
+      return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: helpContent }] };
     }
   );
 
@@ -324,17 +308,13 @@ For more information, visit: https://docs.greptile.com`;
     async uri => {
       return {
         contents: [
-          {
-            uri: uri.href,
-            mimeType: 'application/json',
-            text: JSON.stringify(config, null, 2),
-          },
+          { uri: uri.href, mimeType: 'application/json', text: JSON.stringify(config, null, 2) },
         ],
       };
     }
   );
 
-  // Register prompts
+  // Add prompts
   server.registerPrompt(
     'codebase_exploration',
     {
@@ -379,9 +359,3 @@ Please start by indexing the repository, then provide a comprehensive overview o
 
   return server.server;
 }
-
-// Also export the legacy exports for backward compatibility
-export { GreptileMCPServer } from './server.js';
-export { GreptileClient } from './clients/greptile.js';
-export * from './types/index.js';
-export * from './utils/index.js';
