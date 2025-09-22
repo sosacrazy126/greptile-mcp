@@ -6,13 +6,13 @@
   "bin": {
     "greptile-mcp-server": "./dist/cli.js"
   },
-  "main": "./dist/server.js",
+  "main": "./dist/index.js",
   "module": "./src/index.ts",
-  "types": "./dist/server.d.ts",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/server.js",
-      "types": "./dist/server.d.ts"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     },
     "./cli": {
       "import": "./dist/cli.js",
