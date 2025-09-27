@@ -5,7 +5,6 @@ import { hideBin } from 'yargs/helpers';
 import {
   buildHeaders,
   buildIgnoreRules,
-  getConfigDir,
   isHttpUrl,
   isHttpsUrl,
   makeDebugLogger,
