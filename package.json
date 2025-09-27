@@ -4,7 +4,9 @@
   "description": "Modern TypeScript MCP server for AI-powered code search and querying with Greptile API",
   "type": "module",
   "bin": {
-    "greptile-mcp-server": "./dist/cli.js"
+    "greptile-mcp-server": "./dist/cli.js",
+    "mcp-remote": "./dist/mcp-remote.js",
+    "mcp-remote-client": "./dist/mcp-remote-client.js"
   },
   "main": "./dist/index.js",
   "module": "./src/index.ts",
