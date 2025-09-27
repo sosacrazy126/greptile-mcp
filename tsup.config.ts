@@ -5,7 +5,9 @@ export default defineConfig({
     cli: 'src/cli.ts',
     server: 'src/server.ts',
     index: 'src/index.ts',
-    smithery: 'src/smithery.ts'
+    smithery: 'src/smithery.ts',
+    'mcp-remote': 'src/mcp-remote.ts',
+    'mcp-remote-client': 'src/mcp-remote-client.ts'
   },
   format: ['esm'],
   dts: true,

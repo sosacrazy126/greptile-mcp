@@ -155,6 +155,14 @@ The server uses standard MCP protocol and works with any MCP-compatible client:
 your-mcp-client connect --command "npx greptile-mcp-server"
 ```
 
+### Bridge stdio-only clients to remote MCP servers (experimental)
+If your MCP client only supports local (stdio) servers but you need to connect to a remote MCP server that requires HTTP/SSE and OAuth, you can use the companion utility mcp-remote.
+
+- Purpose: Acts as a local stdio server that forwards requests to a remote MCP server, handling OAuth and headers
+- Supports: Custom headers, OAuth callback on localhost, optional HTTP in trusted networks, debug logging, proxy support, tool filtering, and transport strategies (HTTP/SSE)
+
+See docs/mcp-remote.md for full usage, flags, and troubleshooting guidance.
+
 ## 🛠️ Available Tools
 
 ### 1. **`greptile_help`**
