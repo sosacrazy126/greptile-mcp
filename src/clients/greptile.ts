@@ -8,6 +8,13 @@ import type {
 } from '../types/index.js';
 import { retry, safeJsonParse } from '../utils/index.js';
 
+interface FetchRequestOptions {
+  method: string;
+  headers: Record<string, string>;
+  signal: AbortSignal;
+  body?: string;
+}
+
 export class GreptileClient {
   private readonly apiKey: string;
   private readonly githubToken: string;
@@ -206,7 +213,9 @@ export class GreptileClient {
   ): Promise<Record<string, unknown>> {
     // Check if API key is available for actual requests
     if (!this.apiKey) {
-      throw new Error('Greptile API key is required for API calls. Please configure your API key in the session settings.');
+      throw new Error(
+        'Greptile API key is required for API calls. Please configure your API key in the session settings.'
+      );
     }
 
     const requestTimeout = timeout || this.defaultTimeout;
@@ -216,7 +225,7 @@ export class GreptileClient {
       const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
 
       try {
-        const requestOptions: any = {
+        const requestOptions: FetchRequestOptions = {
           method,
           headers: this.headers,
           signal: controller.signal,

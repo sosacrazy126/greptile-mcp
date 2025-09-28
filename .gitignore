@@ -42,14 +42,20 @@ env.bak/
 venv.bak/
 pythonenv*
 
-# IDE
+# IDE and Development Tools
 .idea/
 .vscode/
+.vs/
+.cursor/
+.roo/
+.augment/
+.kilocode/
+# Claude AI assistant configuration and workspace files
+.claude/
 *.swp
 *.swo
 *.sublime-workspace
 *.sublime-project
-.vs/
 .spyderproject
 .spyproject
 .ropeproject
@@ -145,8 +151,6 @@ claude_*.json
 !*_config.example.json
 
 # Development environments and tools
-.cursor/
-.roo/
 .cursorignore
 .cursorrules
 .roomodes
@@ -178,6 +182,3 @@ run_*.py
 .temp/
 .tmp/
 
-# Development IDE directories
-.augment/
-.kilocode/

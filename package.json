@@ -29,7 +29,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "npx @smithery/cli build",
+    "build": "npm run build:legacy",
     "dev": "npx @smithery/cli dev",
     "build:legacy": "tsup && chmod +x dist/cli.js",
     "dev:legacy": "tsx src/cli.ts",

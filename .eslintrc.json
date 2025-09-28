@@ -14,12 +14,20 @@
   "rules": {
     "prettier/prettier": "error",
     "no-unused-vars": "off",
-    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "no-console": ["warn", { "allow": ["warn", "error", "log"] }],
     "prefer-const": "error"
   },
+  "overrides": [
+    {
+      "files": ["src/cli.ts"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ],
   "env": {
     "node": true,
     "es2022": true
   },
-  "ignorePatterns": ["dist/", "node_modules/", "*.js", "*.cjs"]
+  "ignorePatterns": ["dist/", "node_modules/", "*.js", "*.cjs", "tsup.config.ts"]
 }

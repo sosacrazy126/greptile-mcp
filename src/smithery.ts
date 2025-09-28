@@ -1,21 +1,58 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { GreptileClient } from './clients/greptile.js';
-import type { QueryMessage } from './types/index.js';
+import type { QueryMessage, StreamingChunk } from './types/index.js';
 import { generateSessionId, createErrorResponse } from './utils/index.js';
 
-// Define configuration schema for Smithery
+// Enhanced configuration schema for Smithery with validation and user guidance
 export const configSchema = z.object({
-  greptileApiKey: z.string().describe('Your Greptile API key from app.greptile.com/settings/api'),
-  githubToken: z.string().describe('GitHub personal access token with repo permissions'),
+  // Required API credentials
+  greptileApiKey: z
+    .string()
+    .min(1, 'API key is required')
+    .describe(
+      'Your Greptile API key from app.greptile.com/settings/api (required for all functionality)'
+    ),
+
+  githubToken: z
+    .string()
+    .min(1, 'GitHub token is required')
+    .describe(
+      'GitHub personal access token with repo permissions (required for repository access)'
+    ),
+
+  // Optional service configuration
   greptileBaseUrl: z
     .string()
+    .url('Must be a valid URL')
     .default('https://api.greptile.com/v2')
-    .describe('Base URL for Greptile API'),
-  transport: z.string().default('stdio').describe('Transport method for MCP'),
-  host: z.string().default('0.0.0.0').describe('Host binding for SSE transport'),
-  port: z.number().default(8080).describe('Port for SSE transport'),
+    .describe('Greptile API base URL (leave default unless using custom instance)'),
+
+  // Transport and networking settings
+  transport: z
+    .enum(['stdio', 'sse'])
+    .default('stdio')
+    .describe('MCP transport method (stdio for Claude Desktop, sse for web interfaces)'),
+
+  host: z
+    .string()
+    .ip({ version: 'v4' })
+    .default('0.0.0.0')
+    .describe(
+      'Host binding for SSE transport (0.0.0.0 for all interfaces, 127.0.0.1 for localhost only)'
+    ),
+
+  port: z
+    .number()
+    .int()
+    .min(1024, 'Port must be above 1024')
+    .max(65535, 'Port must be below 65536')
+    .default(8080)
+    .describe('Port for SSE transport (1024-65535, default 8080)'),
 });
+
+// Export the config type for external use
+export type SmitheryConfig = z.infer<typeof configSchema>;
 
 type Config = z.infer<typeof configSchema>;
 
@@ -196,7 +233,7 @@ For more information, visit: https://docs.greptile.com`;
             timeout
           );
 
-          for await (const chunk of streamingResponse as AsyncIterable<any>) {
+          for await (const chunk of streamingResponse as AsyncIterable<StreamingChunk>) {
             if (chunk.type === 'text' && chunk.content) {
               streamResults.push(chunk.content);
             }
